@@ -1,0 +1,13 @@
+{
+  "name": "bobcat-weightroom",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Greenbrier HS weight room: rack tablets, TV boards, coach page. Runs offline on a Pi.",
+  "type": "module",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node src/server.js",
+    "seed": "node scripts/seed.js",
+    "test": "node --test"
+  }
+}
