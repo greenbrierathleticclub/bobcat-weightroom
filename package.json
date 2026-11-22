@@ -6,8 +6,8 @@
   "type": "module",
   "engines": { "node": ">=22.13" },
   "scripts": {
-    "start": "node src/server.js",
-    "seed": "node scripts/seed.js",
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "seed": "node --disable-warning=ExperimentalWarning scripts/seed.js",
     "test": "node --test"
   }
 }
