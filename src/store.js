@@ -1,5 +1,5 @@
 // Everything the screens ask for, in plain SQL. No ORM, no magic.
-import { tx } from './db.js';
+import { tx } from './tx.js';
 import { e1rm, loadFromPct, beatYourLast, bodyweightScore } from './scoring.js';
 import { parseScheme, schemeLabel } from './scheme.js';
 
@@ -76,7 +76,7 @@ export class Store {
       cls,
       cls_long: CLASS_LONG[cls] || '',
       group: groupOf(a),
-      photo_url: a.photo ? `/photos/${a.photo}` : null,
+      photo_url: a.photo ? (a.photo.startsWith('data:') ? a.photo : `/photos/${a.photo}`) : null,
     };
   }
   athletes({ includeInactive = false } = {}) {

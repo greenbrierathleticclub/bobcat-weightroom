@@ -28,6 +28,10 @@ export class Backups {
     return this.last;
   }
 
+  status() {
+    return { dir: this.dir, last: this.last, files: this.list() };
+  }
+
   list() {
     if (!existsSync(this.dir)) return [];
     return readdirSync(this.dir)

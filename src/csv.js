@@ -1,6 +1,6 @@
 // Roster import from a spreadsheet saved as CSV (Excel, Google Sheets, Numbers all do this).
 // Header names are matched loosely so the coach's own sheet usually just works.
-import { tx } from './db.js';
+import { tx } from './tx.js';
 import { today, classYear } from './store.js';
 
 export function parseCsv(text) {

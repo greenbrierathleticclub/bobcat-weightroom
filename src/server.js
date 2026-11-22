@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { networkInterfaces } from 'node:os';
 import { openDb } from './db.js';
 import { Store, today, httpError } from './store.js';
-import { importRoster, exportRosterCsv } from './csv.js';
+import { buildRoutes, matchRoute } from './routes.js';
 import { Backups } from './backup.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -66,46 +66,7 @@ export function createApp({ dataDir = join(root, 'data'), backupDir, coachPin = 
   }
   const isCoach = (req) => !coachPin || cookies(req).coach_pin === coachPin;
 
-  // [method, pattern, handler, coachOnly]
-  const routes = [
-    ['GET', '/api/rack/:id', (p, q) => store.rackState(Number(p.id), q.get('day') || today())],
-    ['GET', '/api/athletes', () => store.athletes().map((a) => ({ id: a.id, display: a.display, full: a.full, initials: a.initials, position: a.position, cls: a.cls, photo_url: a.photo_url, last_name: a.last_name, first_name: a.first_name }))],
-    ['GET', '/api/athletes/:id/card', (p, q) => store.athleteCard(Number(p.id), q.get('day') || today())],
-    ['POST', '/api/sessions', (p, q, b) => store.startSession(b)],
-    ['GET', '/api/sessions/:id', (p) => store.sessionView(Number(p.id))],
-    ['POST', '/api/sessions/:id/sets', (p, q, b) => store.logSet(Number(p.id), b)],
-    ['POST', '/api/sessions/:id/undo', (p) => store.undoLastSet(Number(p.id))],
-    ['POST', '/api/sessions/:id/end', (p) => store.endSession(Number(p.id))],
-    ['GET', '/api/board/today', (p, q) => store.todayBoard(q.get('day') || today())],
-    ['GET', '/api/board/season', () => store.seasonBoard()],
-    ['GET', '/api/settings', () => store.settings()],
-    ['GET', '/api/time', () => ({ now: Date.now(), day: today() })],
-
-    // Coach
-    ['GET', '/api/coach/check', () => ({ ok: true }), true],
-    ['GET', '/api/coach/athletes', () => store.athletes({ includeInactive: true }).map((a) => ({ ...a, maxes: store.currentMaxes(a.id) })), true],
-    ['POST', '/api/coach/athletes', (p, q, b) => store.saveAthlete(b), true],
-    ['GET', '/api/coach/athletes/:id', (p) => ({ ...store.athlete(Number(p.id)), maxes: store.maxHistory(Number(p.id)), history: store.history(Number(p.id)) }), true],
-    ['POST', '/api/coach/athletes/:id/photo', (p, q, b) => savePhoto(Number(p.id), b), true],
-    ['POST', '/api/coach/import', (p, q, b) => importRoster(store, b.csv, { dryRun: !!b.dry_run }), true],
-    ['GET', '/api/coach/export.csv', () => ({ __raw: exportRosterCsv(store), type: 'text/csv; charset=utf-8', file: `roster-${today()}.csv` }), true],
-    ['POST', '/api/coach/maxes', (p, q, b) => store.addMaxes(b.entries, b.tested_on || today(), 'tested'), true],
-    ['DELETE', '/api/coach/maxes/:id', (p) => store.deleteMax(Number(p.id)) || { ok: true }, true],
-    ['GET', '/api/coach/workout', (p, q) => ({ day: q.get('day') || today(), items: store.workout(q.get('day') || today()).filter((w) => w.seq < 999), recent: store.recentWorkoutDays(), lifts: store.lifts() }), true],
-    ['POST', '/api/coach/workout', (p, q, b) => store.saveWorkout(b.day, b.items), true],
-    ['POST', '/api/coach/workout/copy', (p, q, b) => store.copyWorkout(b.from, b.to), true],
-    ['POST', '/api/coach/lifts', (p, q, b) => store.addLift(b), true],
-    ['GET', '/api/coach/sets', (p, q) => store.setsForDay(q.get('day') || today()), true],
-    ['POST', '/api/coach/sets/:id/void', (p, q, b) => store.voidSet(Number(p.id), b.voided !== false), true],
-    ['POST', '/api/coach/settings', (p, q, b) => store.saveSettings(b), true],
-    ['GET', '/api/coach/backups', () => ({ dir: backups.dir, last: backups.last, files: backups.list() }), true],
-    ['POST', '/api/coach/backups', () => backups.run('manual'), true],
-    ['GET', '/api/coach/backups/:file', (p) => ({ __file: join(backups.dir, basename(p.file)) }), true],
-  ].map(([method, path, fn, coach]) => {
-    const keys = [];
-    const re = new RegExp('^' + path.replace(/:(\w+)/g, (_, k) => { keys.push(k); return '([^/]+)'; }) + '$');
-    return { method, re, keys, fn, coach };
-  });
+  const routes = buildRoutes({ store, backups, savePhoto, backupFile: (name) => ({ __file: join(backups.dir, basename(name)) }) });
 
   function savePhoto(id, b) {
     const m = /^data:image\/(jpeg|png|webp);base64,(.+)$/.exec(b.data_url || '');
@@ -136,14 +97,12 @@ export function createApp({ dataDir = join(root, 'data'), backupDir, coachPin = 
         return send(res, 200, { ok: true }, undefined, { 'Set-Cookie': `coach_pin=${encodeURIComponent(coachPin)}; Path=/; Max-Age=31536000; SameSite=Lax` });
       }
       if (path.startsWith('/api/')) {
-        for (const r of routes) {
-          if (r.method !== req.method) continue;
-          const m = r.re.exec(path);
-          if (!m) continue;
+        const hit = matchRoute(routes, req.method, path);
+        if (hit) {
+          const r = hit.route;
           if (r.coach && !isCoach(req)) return send(res, 401, { error: 'Coach PIN needed' });
-          const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
           const b = req.method === 'POST' || req.method === 'PUT' ? await body(req) : {};
-          const out = await r.fn(params, url.searchParams, b);
+          const out = await r.fn(hit.params, url.searchParams, b);
           if (out && out.__raw != null) return send(res, 200, out.__raw, out.type, { 'Content-Disposition': `attachment; filename="${out.file}"` });
           if (out && out.__file) {
             res.setHeader('Content-Disposition', `attachment; filename="${basename(out.__file)}"`);
