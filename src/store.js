@@ -379,7 +379,8 @@ export class Store {
       const best = this.bestToday(athlete_id, liftId, day);
       const last = this.lastTime(athlete_id, liftId, day);
       if (!best || !last) continue;
-      out.push({ athlete_id, best, last, pct: beatYourLast(best.e1rm, last.e1rm) });
+      const p = beatYourLast(best.e1rm, last.e1rm);
+      if (p > 0) out.push({ athlete_id, best, last, pct: p }); // board shows gains only; nobody gets shamed on the TV
     }
     out.sort((x, y) => y.pct - x.pct || y.best.e1rm - x.best.e1rm);
     return out;

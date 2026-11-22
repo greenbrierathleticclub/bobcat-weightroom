@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#03170c">
+<title>Bobcat Coach</title>
+<link rel="stylesheet" href="/css/modern.css">
+<style>
+body { background: radial-gradient(1100px 620px at 50% -8%, rgba(9,74,40,0.9) 0%, rgba(9,74,40,0.3) 45%, rgba(9,74,40,0) 75%), var(--ground); background-attachment: fixed; min-height: 100%; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 80px; }
+.top { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.top h1 { margin: 0; font-family: var(--f-disp); font-weight: 900; font-size: 56px; line-height: 0.85; }
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 24px 0 18px; }
+.tabs button { height: 48px; padding: 0 20px; font-size: 20px; }
+.tabs button.on { background: #fff; color: var(--green); border: 0; }
+.panel { padding: 24px; display: flex; flex-direction: column; gap: 18px; }
+.panel h2 { margin: 0; font-family: var(--f-cond); font-weight: 800; font-size: 32px; letter-spacing: 0.02em; text-transform: uppercase; }
+.help { color: #c8c8c8; font-size: 16px; line-height: 1.5; margin: 0; }
+.help code, code { font-family: var(--f-cond); font-weight: 700; font-size: 17px; background: rgba(255,255,255,0.1); padding: 1px 7px; border-radius: 6px; }
+label.f { display: flex; flex-direction: column; gap: 6px; font-family: var(--f-cond); font-weight: 700; font-size: 15px; letter-spacing: 0.1em; color: #c8c8c8; text-transform: uppercase; }
+input, select, textarea { font: 600 18px var(--f-body); color: #fff; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.2); border-radius: 14px; padding: 10px 14px; min-height: 46px; width: 100%; }
+input:focus, select:focus, textarea:focus { outline: 2px solid #fff; outline-offset: 1px; }
+select option { color: #000; }
+input[type=checkbox], input[type=radio] { width: 22px; min-height: 22px; height: 22px; accent-color: #fff; }
+.grid { display: grid; gap: 12px; }
+.g2 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.btns { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.btn { height: 48px; padding: 0 22px; font-size: 20px; }
+.btn.sm { height: 38px; padding: 0 14px; font-size: 16px; }
+.item { display: grid; grid-template-columns: 170px 1fr auto; gap: 12px; align-items: start; padding: 16px; border-radius: 20px; background: rgba(255,255,255,0.05); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.09); }
+.item .preview { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.item .preview span { font-family: var(--f-cond); font-weight: 700; font-size: 15px; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,0.1); }
+.item .preview span.err { background: #fff; color: #7a1010; }
+.item .side { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+@media (max-width: 720px) { .item { grid-template-columns: 1fr; } .item .side { flex-direction: row; align-items: center; } }
+table { width: 100%; border-collapse: collapse; font-size: 17px; }
+th { text-align: left; font-family: var(--f-cond); font-weight: 700; font-size: 15px; letter-spacing: 0.1em; color: #c8c8c8; text-transform: uppercase; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.15); position: sticky; top: 0; background: #0b2316; }
+td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.07); vertical-align: middle; }
+tr.void td { opacity: 0.4; text-decoration: line-through; }
+.tablebox { overflow: auto; max-height: 70vh; border-radius: 16px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.09); }
+td input { min-height: 38px; padding: 6px 10px; font-size: 17px; }
+.msg { padding: 12px 18px; border-radius: 14px; background: #fff; color: var(--green); font-weight: 700; }
+.msg.bad { color: #7a1010; }
+.links a { color: #fff; font-weight: 700; }
+dialog { background: #0b2316; color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 24px; padding: 24px; width: min(640px, 94vw); }
+dialog::backdrop { background: rgba(0,0,0,0.6); }
+.photo { width: 72px; height: 72px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="shield-glow" style="padding:14px;margin:-14px"><img src="/img/shield.svg" alt="Greenbrier Bobcat Shield" style="height:56px;width:78px"></div>
+    <div><div class="label" style="letter-spacing:0.2em">BOBCAT WEIGHT ROOM</div><h1>COACH</h1></div>
+    <div class="links btns" style="margin-left:auto;font-family:var(--f-cond);font-size:18px;letter-spacing:0.06em">
+      <a href="/tv" target="_blank">TV BOARD</a><span class="gray">·</span><span id="racklinks"></span>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs"></nav>
+  <main id="main"></main>
+</div>
+<dialog id="dlg"></dialog>
+<script type="module" src="/js/coach.js"></script>
+</body>
+</html>

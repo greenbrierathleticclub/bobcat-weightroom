@@ -48,7 +48,7 @@ function liftPill(item, note = 'WEIGHTS WORKED OUT FROM YOUR MAX') {
   if (!item) return `<div class="smoke liftpill"><div class="name">NO WORKOUT LOADED</div><div class="label" style="font-size:18px">COACH LOADS TODAY'S LIFT ON THE COACH PAGE</div></div>`;
   return `<div class="smoke liftpill">
     <div class="top"><div class="name">${esc(item.lift_name)}</div><div class="vbar" aria-hidden="true"></div><div class="scheme clip">${esc(item.label)}</div></div>
-    <div class="label" style="font-size:18px">${item.has_max ? note : "PICK YOUR OWN WEIGHT"}</div>
+    <div class="label" style="font-size:18px">${item.note ? esc(item.note) : item.has_max ? note : 'PICK YOUR OWN WEIGHT'}</div>
   </div>`;
 }
 
@@ -529,3 +529,21 @@ async function refreshSession() {
 }
 
 loadRack();
+
+// ---------- keep the screen on mid-workout, let Android turn it off when idle ----------
+// Needs the tablet's Chrome to treat this address as secure (see README, tablet setup).
+let wakeLock = null;
+async function syncWakeLock() {
+  const want = !['idle', 'sleep'].includes(S.view) && document.visibilityState === 'visible';
+  try {
+    if (want && !wakeLock && navigator.wakeLock) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } else if (!want && wakeLock) {
+      await wakeLock.release();
+      wakeLock = null;
+    }
+  } catch { wakeLock = null; }
+}
+document.addEventListener('visibilitychange', syncWakeLock);
+setInterval(syncWakeLock, 3000);

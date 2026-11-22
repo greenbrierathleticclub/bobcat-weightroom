@@ -79,6 +79,7 @@ export function createApp({ dataDir = join(root, 'data'), backupDir, coachPin = 
     ['GET', '/api/board/today', (p, q) => store.todayBoard(q.get('day') || today())],
     ['GET', '/api/board/season', () => store.seasonBoard()],
     ['GET', '/api/settings', () => store.settings()],
+    ['GET', '/api/time', () => ({ now: Date.now(), day: today() })],
 
     // Coach
     ['GET', '/api/coach/check', () => ({ ok: true }), true],
@@ -152,6 +153,7 @@ export function createApp({ dataDir = join(root, 'data'), backupDir, coachPin = 
         }
         return send(res, 404, { error: 'No such API' });
       }
+      if (path === '/js/scheme.js') return serveFile(res, join(root, 'src', 'scheme.js')); // same parser on the coach page
       if (/^\/rack\/\d+\/?$/.test(path)) return serveFile(res, join(PUBLIC, 'rack.html'));
       if (PAGES[path]) return serveFile(res, join(PUBLIC, PAGES[path]));
       if (path.startsWith('/photos/')) return serveFile(res, join(dataDir, 'photos', basename(path)));
