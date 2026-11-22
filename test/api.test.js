@@ -137,3 +137,30 @@ test('coach PIN locks the coach API when set', async () => {
   assert.equal((await fetch(`${url}/api/coach/athletes`, { headers: { cookie } })).status, 200);
   locked.close();
 });
+
+test('kids take turns on one rack: each keeps his place', async () => {
+  const people = (await call('/api/coach/athletes')).data;
+  const holt = people.find((a) => a.last_name === 'Holt');
+  const pruitt = people.find((a) => a.last_name === 'Pruitt');
+  await call('/api/coach/workout', { day, items: [{ lift: 'bench', scheme: '3x5@70', on_board: true }, { lift: 'squat', scheme: '2x3@75' }] });
+  const items = (await call('/api/rack/1')).data.items;
+  const turn = async (a) => {
+    const card = (await call('/api/rack/1')).data.crew.find((c) => c.id === a.id);
+    const s = (await call('/api/sessions', { athlete_id: a.id, rack_id: 1, item_id: card.item_id })).data;
+    await call(`/api/sessions/${s.id}/sets`, { weight: card.next_weight, reps: 5 });
+    return card;
+  };
+  // Holt, Pruitt, Holt, Pruitt...
+  assert.equal((await turn(holt)).sets_done, 0);
+  assert.equal((await turn(pruitt)).sets_done, 0);
+  const h2 = await turn(holt);
+  assert.equal(h2.sets_done, 1, 'Holt comes back on set 2, not set 1');
+  assert.equal(h2.item_id, items[0].id);
+  await turn(holt);
+  const after = (await call('/api/rack/1')).data.crew.find((c) => c.id === holt.id);
+  assert.equal(after.item_id, items[1].id, 'bench finished: tile moves to squat');
+  assert.equal(after.sets_done, 0);
+  const p = (await call('/api/rack/1')).data.crew.find((c) => c.id === pruitt.id);
+  assert.equal(p.sets_done, 1);
+  assert.equal(p.item_id, items[0].id);
+});

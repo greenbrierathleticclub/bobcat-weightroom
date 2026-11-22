@@ -224,31 +224,56 @@ export class Store {
     const rack = this.q('SELECT * FROM racks WHERE id = ?').get(rackId);
     if (!rack) throw httpError(404, 'No such rack');
     const items = this.workout(day).filter((w) => w.seq < 999);
-    const first = items[0] || null;
-    const crew = this.athletes().filter((a) => a.default_rack === rack.id).map((a) => this.crewCard(a, first, day));
-    return {
-      rack,
-      day,
-      settings: this.settings(),
-      items: items.map(publicItem),
-      crew,
-    };
+    // The crew: kids assigned to this rack, plus anybody who has logged here today (walk-ins), in order of arrival.
+    const assigned = this.athletes().filter((a) => a.default_rack === rack.id);
+    const walkIns = this.q(`SELECT athlete_id, MIN(id) AS first FROM sessions WHERE rack_id = ? AND day = ? GROUP BY athlete_id ORDER BY first`).all(rack.id, day)
+      .map((r) => r.athlete_id).filter((id) => !assigned.some((a) => a.id === id)).map((id) => this.athlete(id)).filter((a) => a && a.active);
+    const crew = [...assigned, ...walkIns].map((a) => this.crewCard(a, day));
+    return { rack, day, settings: this.settings(), items: items.map(publicItem), crew };
   }
-  // What a kid's tile shows: the first lift he hasn't touched today and his weight for its first set.
-  crewCard(a, firstItem, day = today()) {
+
+  // A kid's tile: which lift he's on and where he is in it, so kids can rotate turns on one rack.
+  // A lift is finished when every planned set is logged or he tapped FINISH; otherwise he picks up where he left off.
+  crewCard(a, day = today()) {
     const items = this.workout(day).filter((w) => w.seq < 999);
-    const touched = new Set(this.q(`SELECT DISTINCT se.workout_item_id AS id FROM sessions se JOIN sets s ON s.session_id = se.id
-                                    WHERE se.athlete_id = ? AND se.day = ? AND s.voided = 0`).all(a.id, day).map((r) => r.id));
-    const item = items.find((w) => !touched.has(w.id)) || firstItem || items[0] || null;
+    const sessions = this.q(`SELECT se.id, se.workout_item_id, se.ended_at,
+                               (SELECT COUNT(*) FROM sets s WHERE s.session_id = se.id AND s.voided = 0) AS n
+                             FROM sessions se WHERE se.athlete_id = ? AND se.day = ?`).all(a.id, day);
+    const state = (it) => {
+      const ss = sessions.filter((x) => x.workout_item_id === it.id);
+      const done = ss.reduce((t, x) => t + x.n, 0);
+      const finished = (it.sets.length > 0 && done >= it.sets.length) || ss.some((x) => x.ended_at && x.n > 0);
+      return { done, finished };
+    };
+    const states = items.map((it) => ({ it, ...state(it) }));
+    const cur = states.find((x) => !x.finished) || null;
+    const item = cur ? cur.it : null;
     const plan = item ? this.plan(a.id, item) : [];
+    const doneSets = cur ? cur.done : 0;
+    const nextPlan = plan[Math.min(doneSets, plan.length - 1)];
+    const lastSet = item ? this.q(`SELECT s.weight_lb FROM sets s JOIN sessions se ON se.id = s.session_id
+                                   WHERE se.athlete_id = ? AND se.workout_item_id = ? AND s.voided = 0 ORDER BY s.id DESC LIMIT 1`).get(a.id, item.id) : null;
     const max = item && item.has_max ? this.currentMax(a.id, item.lift_id) : null;
-    return { ...pickAthlete(a), item_id: item ? item.id : null, item_lift: item ? item.lift_short : null, item_label: item ? item.label : null,
-      first_weight: plan[0] ? plan[0].weight : null, first_pct: plan[0] ? plan[0].pct : null, max, all_done: items.length > 0 && items.every((w) => touched.has(w.id)) };
+    return {
+      ...pickAthlete(a),
+      item_id: item ? item.id : null,
+      item_lift: item ? item.lift_short : null,
+      item_label: item ? item.label : null,
+      sets_done: doneSets,
+      sets_total: plan.length,
+      next_weight: nextPlan && nextPlan.weight ? nextPlan.weight : lastSet ? lastSet.weight_lb : null,
+      next_reps: nextPlan ? nextPlan.reps : null,
+      next_pct: nextPlan ? nextPlan.pct : null,
+      first_weight: plan[0] ? plan[0].weight : null,
+      first_pct: plan[0] ? plan[0].pct : null,
+      max,
+      all_done: items.length > 0 && !cur,
+    };
   }
   athleteCard(athleteId, day = today()) {
     const a = this.athlete(athleteId);
     if (!a) throw httpError(404, 'No such athlete');
-    return this.crewCard(a, null, day);
+    return this.crewCard(a, day);
   }
   item(id) {
     const it = this.q(`SELECT w.*, l.key AS lift_key, l.name AS lift_name, l.short AS lift_short, l.has_max

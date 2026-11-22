@@ -59,7 +59,7 @@ function personLine(a, extra = '') {
       <h1 style="margin:0;font-weight:700;font-size:40px;line-height:1;letter-spacing:-0.01em" class="clip">${esc(a.display)}</h1>
       <div class="label">${esc([a.position, a.cls_long || a.cls].filter(Boolean).join(' · '))}${extra ? ` · ${esc(extra)}` : ''}</div>
     </div>
-    ${S.view === 'log' ? '<button type="button" class="btn btn-ghost undo" data-act="switch" style="margin-left:auto">SWITCH</button>' : ''}
+    ${S.view === 'log' ? '<button type="button" class="btn btn-ghost undo" data-act="switch" style="margin-left:auto">BACK</button>' : ''}
   </div>`;
 }
 
@@ -100,7 +100,9 @@ function signinView() {
       <div style="display:flex;align-items:center;gap:14px;min-width:0">${avatar(a, 60)}<div class="clip" style="font-weight:700;font-size:30px;line-height:1">${esc(a.display)}</div></div>
       <div style="display:flex;align-items:baseline;justify-content:space-between">
         <div class="cond" style="font-size:20px;letter-spacing:0.12em;opacity:0.7">${esc([a.position, a.cls].filter(Boolean).join(' · '))}</div>
-        <div class="disp" style="font-size:52px">${a.all_done ? '<span class="cond" style="font-size:22px">DONE</span>' : a.first_weight ? `${a.first_weight}<span class="cond" style="font-size:20px;opacity:0.7"> LB</span>` : ''}</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+          ${a.all_done ? '' : `<div class="cond" style="font-size:18px;letter-spacing:0.1em;opacity:0.7">${a.sets_done ? `${esc((a.item_lift || '').toUpperCase())} · SET ${a.sets_done + 1}/${a.sets_total}` : esc((a.item_lift || '').toUpperCase())}</div>`}
+          <div class="disp" style="font-size:52px">${a.all_done ? '<span class="cond" style="font-size:22px">DONE</span>' : a.next_weight ? `${a.next_weight}<span class="cond" style="font-size:20px;opacity:0.7"> LB</span>` : ''}</div></div>
       </div>
     </button>`;
   }).join('');
@@ -110,23 +112,23 @@ function signinView() {
     <section class="card" style="flex-grow:1;min-height:0;padding:30px;display:flex;flex-direction:column">
       <div class="sheen" aria-hidden="true"></div>
       ${p ? `<div style="position:relative;height:100%;display:flex;flex-direction:column;gap:14px">
-          <div class="label" style="font-size:22px;letter-spacing:0.14em">${p.all_done ? 'ALL DONE TODAY' : `YOUR ${esc((p.item_lift || '').toUpperCase())} WEIGHT TODAY`}</div>
+          <div class="label" style="font-size:22px;letter-spacing:0.14em">${p.all_done ? 'ALL DONE TODAY' : `${esc((p.item_lift || '').toUpperCase())} · SET ${p.sets_done + 1} OF ${p.sets_total}${p.sets_done ? ' · YOUR TURN' : ''}`}</div>
           <div style="font-weight:700;font-size:44px;line-height:1">${esc(p.full)}</div>
           <div style="margin-top:auto;display:flex;align-items:baseline;gap:14px">
-            <div class="disp" style="font-size:200px;letter-spacing:-0.02em;text-shadow:0 18px 40px rgba(0,0,0,0.45)">${p.first_weight ?? '—'}</div>
+            <div class="disp" style="font-size:200px;letter-spacing:-0.02em;text-shadow:0 18px 40px rgba(0,0,0,0.45)">${p.next_weight ?? '—'}</div>
             <div class="cond gray" style="font-weight:800;font-size:40px">LB</div>
           </div>
-          <div class="cond gray" style="font-size:24px;letter-spacing:0.08em">${p.first_pct != null && p.max ? `${Math.round(p.first_pct * 100)}% OF ${p.max}, ROUNDED` : p.first_pct != null ? 'NO MAX ON FILE: PICK YOUR WEIGHT' : 'PICK YOUR WEIGHT ON THE NEXT SCREEN'}</div>
+          <div class="cond gray" style="font-size:24px;letter-spacing:0.08em">${p.all_done ? '' : p.next_pct != null && p.max ? `× ${p.next_reps} · ${Math.round(p.next_pct * 100)}% OF ${p.max}, ROUNDED` : p.next_pct != null ? 'NO MAX ON FILE: PICK YOUR WEIGHT' : p.next_weight ? `× ${p.next_reps ?? ''} · SAME AS YOUR LAST SET` : 'PICK YOUR WEIGHT ON THE NEXT SCREEN'}</div>
         </div>`
       : `<div style="position:relative;margin:auto 0;display:flex;flex-direction:column;gap:16px">
-          <div class="disp" style="font-size:110px;line-height:0.85">WHO'S<br>LIFTING?</div>
-          <div style="font-weight:600;font-size:26px;line-height:1.3" class="gray">${S.crew.length ? 'Tap your name below.' : 'Tap FIND MY NAME.'}</div>
+          <div class="disp" style="font-size:110px;line-height:0.85">WHO'S<br>UP?</div>
+          <div style="font-weight:600;font-size:26px;line-height:1.3" class="gray">${S.crew.length ? 'Taking turns? Tap your name each time it\'s your set. Your spot is saved.' : 'Tap FIND MY NAME.'}</div>
         </div>`}
     </section>
     ${S.crew.length ? `<div class="tiles">${tiles}</div>` : ''}
     <div style="flex-shrink:0;display:flex;gap:14px">
       <button type="button" class="btn btn-ghost" data-act="find" style="flex-grow:1;height:76px;font-size:26px">${S.crew.length ? 'NOT ME · FIND MY NAME' : 'FIND MY NAME'}</button>
-      <button type="button" class="btn btn-main" data-act="go" style="width:250px;height:76px;font-size:30px" ${p && p.item_id ? '' : 'disabled'}>START</button>
+      <button type="button" class="btn btn-main" data-act="go" style="width:250px;height:76px;font-size:30px" ${p && p.item_id ? '' : 'disabled'}>${p && p.sets_done ? 'GO' : 'START'}</button>
     </div>
   </div>`;
 }
@@ -261,7 +263,7 @@ function doneView() {
       <div class="label" style="font-size:22px;letter-spacing:0.14em">${next ? 'NEXT UP' : 'THAT\'S THE WORKOUT'}</div>
       ${next ? `<div style="font-weight:600;font-size:28px;line-height:1.3" class="gray"><span style="color:#fff">${esc(next.lift_name)}</span> · ${esc(next.label)}${next.first_weight ? ` · <span style="color:#fff">${fmtW(next.first_weight)} lb</span>` : ''}</div>` : ''}
       <div style="display:flex;gap:14px">
-        <button type="button" class="btn ${next ? 'btn-ghost' : 'btn-main'}" data-act="leave" style="${next ? 'width:230px;font-size:24px' : 'flex-grow:1;font-size:34px'};height:84px">I'M DONE</button>
+        <button type="button" class="btn ${next ? 'btn-ghost' : 'btn-main'}" data-act="leave" style="${next ? 'width:250px;font-size:24px' : 'flex-grow:1;font-size:34px'};height:84px">NEXT LIFTER</button>
         ${next ? `<button type="button" class="btn btn-main" data-act="next" style="flex-grow:1;height:84px;font-size:34px">START ${esc(next.lift_short.toUpperCase())}</button>` : ''}
       </div>
     </section>
@@ -442,7 +444,7 @@ async function act(name, el) {
       S.view = 'signin'; render(); break;
     case 'back': S.view = 'signin'; render(); break;
     case 'go': if (S.pick?.item_id) await startSession(S.pick.id, S.pick.item_id); break;
-    case 'switch': endQuietly(); S.pick = null; S.view = 'signin'; await loadRack(); break;
+    case 'switch': backToRack(); break;
     case 'dec':
       if (S.weightMode) S.weight = Math.max(0, S.weight - Number(S.settings.round_to || 5));
       else S.reps = Math.max(1, S.reps - 1);
@@ -464,12 +466,14 @@ async function act(name, el) {
           S.pr = { ...r.pr, weight: loggedWeight, reps: S.session.sets[S.session.sets.length - 1].reps };
           S.view = 'pr';
         } else {
-          S.view = S.session.sets.length >= S.session.plan.length ? 'done' : 'log';
+          S.view = S.session.sets.length >= S.session.plan.length ? 'done' : 'turnover';
         }
         setDefaultsForCurrentSet();
         if (S.view === 'done') api(`/api/sessions/${S.session.id}/end`, { method: 'POST', body: {} }).catch(() => {});
       } catch (e) { toast(e.message); }
-      S.busy = false; render(); break;
+      S.busy = false;
+      if (S.view === 'turnover') { turnover(); break; }
+      render(); break;
     }
     case 'undo':
       try { S.session = await api(`/api/sessions/${S.session.id}/undo`, { method: 'POST', body: {} }); setDefaultsForCurrentSet(); } catch (e) { toast(e.message); }
@@ -478,12 +482,25 @@ async function act(name, el) {
     case 'prdone':
       if (performance.now() - prShownAt < 1800) return; // don't let a stray tap kill the moment
       cancelAnimationFrame(prRaf);
-      S.view = S.session.sets.length >= S.session.plan.length ? 'done' : 'log';
-      render(); break;
+      if (S.session.sets.length >= S.session.plan.length) { S.view = 'done'; render(); } else turnover();
+      break;
     case 'next': if (S.session?.next) await startSession(S.session.athlete.id, S.session.next.id); break;
-    case 'leave': endQuietly(); goIdle(); break;
+    case 'leave': backToRack(); break;
     case 'wake': S.view = 'idle'; await loadRack(); break;
   }
+}
+
+// Set logged and more to go: hand the rack to the next kid. His spot is saved on the server.
+function turnover() {
+  const s = S.session;
+  const n = s.sets.length;
+  const next = s.plan[n];
+  backToRack(`${s.athlete.display.toUpperCase()} · SET ${n} LOGGED${next && next.weight ? ` · NEXT ${fmtW(next.weight)} × ${next.reps}` : ''}`);
+}
+function backToRack(message) {
+  S.view = 'signin'; S.session = null; S.pick = null; S.pr = null; S.weightMode = false;
+  if (message) toast(message);
+  loadRack();
 }
 
 function endQuietly() {
@@ -508,7 +525,7 @@ setInterval(() => {
   const idleFor = (Date.now() - lastTouch) / 1000;
   const idleAfter = Number(S.settings.rack_idle_seconds || 90);
   const sleepAfter = Number(S.settings.rack_sleep_seconds || 300);
-  if (!['idle', 'sleep'].includes(S.view) && idleFor > (S.view === 'pr' ? idleAfter + 30 : idleAfter)) { endQuietly(); goIdle(); }
+  if (!['idle', 'sleep'].includes(S.view) && idleFor > (S.view === 'pr' ? idleAfter + 30 : idleAfter)) goIdle();
   else if (S.view === 'idle' && idleFor > sleepAfter) { S.view = 'sleep'; render(); }
 }, 5000);
 
