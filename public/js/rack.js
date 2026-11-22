@@ -4,7 +4,7 @@ import { api, esc, fitStage, live, avatar, pct, weekday, ICON } from './common.j
 const stage = document.getElementById('stage');
 fitStage(stage, 800, 1280);
 
-const rackId = Number(location.pathname.split('/')[2]) || 1;
+const rackId = Number(new URLSearchParams(location.search).get('rack') || location.pathname.split('/')[2]) || 1;
 const S = {
   view: 'idle',       // idle | signin | find | log | pr | done | sleep
   rack: null, day: null, items: [], crew: [], settings: {},

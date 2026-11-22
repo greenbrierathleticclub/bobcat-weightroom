@@ -103,3 +103,14 @@ Every logged set is a row in `sets` with `source = 'typed'`. A camera will write
 ## For whoever maintains this
 
 Boring on purpose: plain Node (22.13+), the built-in `node:sqlite`, zero npm packages, no build step. `src/` is the server (`store.js` has every query), `public/` is the screens (plain HTML, CSS and JS modules). `npm test` runs the tests. `npm run seed -- --force` wipes and reloads fake data (never on the real database).
+
+## Shareable demo (no setup)
+
+`dist-demo/` is the same app running entirely in one browser tab: same screens, same `store.js`, with SQLite running in the browser through sql.js. 70 made-up kids, nothing saved, reloading starts over. Build it with:
+
+```
+npm pack sql.js@1.10.2 && tar -xzf sql.js-1.10.2.tgz
+node scripts/build-demo.js package/dist/sql-asm.js
+```
+
+Then serve `dist-demo/` with any static web server. The demo-only pieces live in `demo-src/`.

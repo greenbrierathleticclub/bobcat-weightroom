@@ -1,0 +1,151 @@
+<title>Bobcat Weight Room</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700;800&display=swap">
+<style>
+/* Layout: one dark Bobcat-green bar of tabs on top, the live screens below, sized like the real hardware. */
+:root {
+  --ground: #03170c;
+  --panel: #0a2a18;
+  --green: #094a28;
+  --line: rgba(255, 255, 255, 0.12);
+  --ink: #ffffff;
+  --gray: #a0a0a0;
+  --gold: #e8c547;
+  --display: 'Barlow Condensed', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+  --body: 'Barlow', 'Helvetica Neue', Arial, sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--ground); color: var(--ink); font-family: var(--body); display: flex; flex-direction: column; overflow: hidden; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); background: linear-gradient(180deg, var(--green), var(--panel)); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.brand img { width: 40px; height: 29px; }
+.brand b { font-family: var(--display); font-weight: 800; font-size: 22px; letter-spacing: 0.04em; line-height: 1; display: block; }
+.brand small { color: var(--gray); font-size: 12.5px; letter-spacing: 0.02em; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.tabs button, .reset { font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: 0.08em; color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; cursor: pointer; }
+.tabs button[aria-pressed="true"] { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+.tabs button:hover:not([aria-pressed="true"]), .reset:hover { border-color: rgba(255,255,255,0.4); }
+button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.reset { color: var(--gray); font-size: 13px; }
+.hint { padding-block: 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); font-size: 14px; color: var(--gray); border-bottom: 1px solid var(--line); }
+.hint strong { color: var(--ink); font-weight: 600; }
+.frames { flex: 1; min-height: 0; display: flex; gap: 16px; justify-content: center; align-items: center; padding: 14px max(16px, env(safe-area-inset-right, 0px)) 14px max(16px, env(safe-area-inset-left, 0px)); }
+.frame { border: 0; background: #000; border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); max-width: 100%; display: block; }
+.frame.rack { height: 100%; aspect-ratio: 800 / 1280; }
+.frame.tv { width: 100%; aspect-ratio: 16 / 9; max-height: 100%; }
+.frame.coach { width: 100%; height: 100%; max-width: 1200px; border-radius: 8px; }
+.view-both .frame.tv { width: auto; flex: 1; min-width: 0; height: auto; }
+.cap { font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: 0.12em; color: var(--gray); }
+.loading { position: fixed; inset: 0; display: grid; place-items: center; background: var(--ground); z-index: 5; text-align: center; padding: 24px; }
+.loading b { font-family: var(--display); font-weight: 800; font-size: 34px; letter-spacing: 0.04em; display: block; margin: 14px 0 6px; }
+.loading p { color: var(--gray); margin: 0; }
+.loading .err { color: #ff8a80; max-width: 40ch; }
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--ground); padding: 10px 16px; border-radius: 8px; font-weight: 600; max-width: calc(100% - 32px); z-index: 6; }
+@media (max-width: 860px) {
+  body { overflow: auto; }
+  .frames { flex-direction: column; flex: none; height: auto; align-items: stretch; }
+  .frame.rack { height: auto; width: 100%; max-width: 520px; margin: 0 auto; }
+  .view-both .frame.tv { width: 100%; flex: none; }
+  .frame.coach { height: 80vh; }
+  .tabs { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="bar">
+  <div class="brand">
+    <img src="app/img/shield.svg" alt="Greenbrier Bobcat shield">
+    <div><b>BOBCAT WEIGHT ROOM</b><small>Working demo with 70 made-up kids. Reloading starts it over.</small></div>
+  </div>
+  <nav class="tabs" aria-label="Screens">
+    <button type="button" id="tab-both" data-view="both">RACK + TV</button>
+    <button type="button" id="tab-rack1" data-view="rack1">RACK 1</button>
+    <button type="button" id="tab-rack2" data-view="rack2">RACK 2</button>
+    <button type="button" id="tab-tv" data-view="tv">WALL TV</button>
+    <button type="button" id="tab-coach" data-view="coach">COACH</button>
+    <button type="button" class="reset" id="reset">START OVER</button>
+  </nav>
+</header>
+<div class="hint" id="hint"></div>
+<main class="frames" id="frames">
+  <iframe class="frame rack" id="f-rack1" title="Rack 1 tablet"></iframe>
+  <iframe class="frame rack" id="f-rack2" title="Rack 2 tablet" hidden></iframe>
+  <iframe class="frame tv" id="f-tv" title="Wall TV"></iframe>
+  <iframe class="frame coach" id="f-coach" title="Coach page" hidden></iframe>
+</main>
+<div class="loading" id="loading">
+  <div>
+    <img src="app/img/shield.svg" alt="" width="110" height="80">
+    <b>OPENING THE WEIGHT ROOM</b>
+    <p>Loading 70 made-up kids and three weeks of lifting…</p>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="engine/sql-asm.js"></script>
+<script type="module">
+import * as engine from './engine/boot.js';
+
+const SRC = { rack1: 'app/rack.html?rack=1', rack2: 'app/rack.html?rack=2', tv: 'app/tv.html', coach: 'app/coach.html' };
+const SHOWS = { both: ['rack1', 'tv'], rack1: ['rack1'], rack2: ['rack2'], tv: ['tv'], coach: ['coach'] };
+const HINTS = {
+  both: '<strong>Try it:</strong> tap the rack screen, pick a kid, hit LOG SET. The TV updates the second you log. Kids rotate, so BACK hands the rack to the next kid without losing his place.',
+  rack1: '<strong>Rack 1 tablet</strong> as it sits on the rack upright, portrait. Tap anywhere to start.',
+  rack2: '<strong>Rack 2 tablet.</strong> Different crew, same workout. Sets logged here show on the TV too.',
+  tv: '<strong>Wall TV.</strong> Flips between TODAY and SEASON every 20 seconds.',
+  coach: '<strong>Coach page.</strong> Load the workout, fix the roster, enter maxes on max day, strike a bad set. Changes hit the racks and TV right away.',
+};
+const frames = Object.fromEntries(Object.keys(SRC).map((k) => [k, document.getElementById(`f-${k}`)]));
+const toastEl = document.getElementById('toast');
+let toastTimer;
+
+function toast(msg) {
+  toastEl.textContent = msg; toastEl.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { toastEl.hidden = true; }, 3500);
+}
+
+function show(view) {
+  if (!SHOWS[view]) view = 'both';
+  const on = SHOWS[view];
+  for (const [k, f] of Object.entries(frames)) {
+    f.hidden = !on.includes(k);
+    if (!f.hidden) setTimeout(() => { try { f.contentWindow.dispatchEvent(new Event('resize')); } catch (e) { /* not loaded yet */ } }, 30);
+  }
+  document.getElementById('frames').className = `frames view-${view}`;
+  for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === view));
+  document.getElementById('hint').innerHTML = HINTS[view];
+  if (location.hash.slice(1) !== view) history.replaceState(null, '', `#${view}`);
+}
+
+function loadFrames() { for (const [k, f] of Object.entries(frames)) f.src = SRC[k]; }
+
+window.BOBCAT = { handle: engine.handle, subscribe: engine.subscribe, show, toast };
+
+document.querySelector('.tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-view]');
+  if (b) show(b.dataset.view);
+});
+window.addEventListener('hashchange', () => show(location.hash.slice(1)));
+for (const f of Object.values(frames)) f.addEventListener('load', () => { try { f.contentWindow.dispatchEvent(new Event('resize')); } catch (e) { /* ignore */ } });
+
+document.getElementById('reset').addEventListener('click', async () => {
+  for (const f of Object.values(frames)) f.src = 'about:blank';
+  await engine.startEngine();
+  loadFrames();
+  toast('Fresh start. Same 70 kids, back to how the day began.');
+});
+
+show(location.hash.slice(1) || 'both');
+try {
+  await engine.startEngine();
+  loadFrames();
+  document.getElementById('loading').hidden = true;
+} catch (err) {
+  console.error(err);
+  document.querySelector('#loading p').className = 'err';
+  document.querySelector('#loading p').textContent = `The demo couldn't start in this browser (${err.message}). Try Chrome, Safari or Edge.`;
+}
+</script>
