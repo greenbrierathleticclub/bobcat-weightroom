@@ -70,7 +70,7 @@ export function createApp({ dataDir = join(root, 'data'), backupDir, coachPin = 
   const routes = [
     ['GET', '/api/rack/:id', (p, q) => store.rackState(Number(p.id), q.get('day') || today())],
     ['GET', '/api/athletes', () => store.athletes().map((a) => ({ id: a.id, display: a.display, full: a.full, initials: a.initials, position: a.position, cls: a.cls, photo_url: a.photo_url, last_name: a.last_name, first_name: a.first_name }))],
-    ['GET', '/api/athletes/:id/card', (p, q) => store.athleteCard(Number(p.id), Number(q.get('item')) || null)],
+    ['GET', '/api/athletes/:id/card', (p, q) => store.athleteCard(Number(p.id), q.get('day') || today())],
     ['POST', '/api/sessions', (p, q, b) => store.startSession(b)],
     ['GET', '/api/sessions/:id', (p) => store.sessionView(Number(p.id))],
     ['POST', '/api/sessions/:id/sets', (p, q, b) => store.logSet(Number(p.id), b)],

@@ -225,7 +225,7 @@ export class Store {
     if (!rack) throw httpError(404, 'No such rack');
     const items = this.workout(day).filter((w) => w.seq < 999);
     const first = items[0] || null;
-    const crew = this.athletes().filter((a) => a.default_rack === rack.id).map((a) => this.crewCard(a, first));
+    const crew = this.athletes().filter((a) => a.default_rack === rack.id).map((a) => this.crewCard(a, first, day));
     return {
       rack,
       day,
@@ -234,16 +234,21 @@ export class Store {
       crew,
     };
   }
-  crewCard(a, item) {
+  // What a kid's tile shows: the first lift he hasn't touched today and his weight for its first set.
+  crewCard(a, firstItem, day = today()) {
+    const items = this.workout(day).filter((w) => w.seq < 999);
+    const touched = new Set(this.q(`SELECT DISTINCT se.workout_item_id AS id FROM sessions se JOIN sets s ON s.session_id = se.id
+                                    WHERE se.athlete_id = ? AND se.day = ? AND s.voided = 0`).all(a.id, day).map((r) => r.id));
+    const item = items.find((w) => !touched.has(w.id)) || firstItem || items[0] || null;
     const plan = item ? this.plan(a.id, item) : [];
     const max = item && item.has_max ? this.currentMax(a.id, item.lift_id) : null;
-    return { ...pickAthlete(a), first_weight: plan[0] ? plan[0].weight : null, first_pct: plan[0] ? plan[0].pct : null, max };
+    return { ...pickAthlete(a), item_id: item ? item.id : null, item_lift: item ? item.lift_short : null, item_label: item ? item.label : null,
+      first_weight: plan[0] ? plan[0].weight : null, first_pct: plan[0] ? plan[0].pct : null, max, all_done: items.length > 0 && items.every((w) => touched.has(w.id)) };
   }
-  athleteCard(athleteId, itemId) {
+  athleteCard(athleteId, day = today()) {
     const a = this.athlete(athleteId);
     if (!a) throw httpError(404, 'No such athlete');
-    const item = itemId ? this.item(itemId) : null;
-    return this.crewCard(a, item);
+    return this.crewCard(a, null, day);
   }
   item(id) {
     const it = this.q(`SELECT w.*, l.key AS lift_key, l.name AS lift_name, l.short AS lift_short, l.has_max

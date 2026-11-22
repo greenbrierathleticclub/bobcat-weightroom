@@ -1,0 +1,1 @@
+{ "name": "Bobcat Rack", "short_name": "Rack", "display": "fullscreen", "orientation": "portrait", "background_color": "#03170c", "theme_color": "#03170c", "start_url": "/rack/1", "icons": [{ "src": "/img/shield.svg", "sizes": "any", "type": "image/svg+xml" }] }
