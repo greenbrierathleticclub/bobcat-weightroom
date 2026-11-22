@@ -100,3 +100,31 @@ CREATE INDEX IF NOT EXISTS idx_sessions_day ON sessions(day);
 CREATE INDEX IF NOT EXISTS idx_sessions_athlete_lift ON sessions(athlete_id, lift_id, day);
 CREATE INDEX IF NOT EXISTS idx_maxes_athlete_lift ON maxes(athlete_id, lift_id, tested_on);
 CREATE INDEX IF NOT EXISTS idx_items_day ON workout_items(day, seq);
+
+-- Practice load from the GPS pods (or typed in). One row per kid per practice day.
+-- flag: 'high' | 'normal' | 'low' | '' (no numbers). manual = 1 when the coach set the flag by hand.
+CREATE TABLE IF NOT EXISTS practice_load (
+  id            INTEGER PRIMARY KEY,
+  athlete_id    INTEGER NOT NULL REFERENCES athletes(id),
+  day           TEXT NOT NULL,             -- YYYY-MM-DD of the practice
+  load          REAL,                      -- the pod's "player load" (any unit, compared within the team)
+  collisions    INTEGER,
+  top_speed_mph REAL,
+  flag          TEXT NOT NULL DEFAULT '',
+  why           TEXT NOT NULL DEFAULT '',
+  manual        INTEGER NOT NULL DEFAULT 0,
+  source        TEXT NOT NULL DEFAULT 'import',
+  UNIQUE (athlete_id, day)
+);
+CREATE INDEX IF NOT EXISTS practice_load_day ON practice_load (day);
+
+-- Speed and jump tests: top speed (GPS), 40, 10 split, pro agility, vertical, broad.
+CREATE TABLE IF NOT EXISTS tests (
+  id         INTEGER PRIMARY KEY,
+  athlete_id INTEGER NOT NULL REFERENCES athletes(id),
+  test       TEXT NOT NULL,                -- key from src/readiness.js TESTS
+  value      REAL NOT NULL,                -- mph, seconds or inches
+  day        TEXT NOT NULL,
+  source     TEXT NOT NULL DEFAULT 'coach' -- 'coach' | 'gps' | 'import'
+);
+CREATE INDEX IF NOT EXISTS tests_by_kid ON tests (athlete_id, test);

@@ -1,19 +1,21 @@
-// Wall TV. Rotates between TODAY and SEASON; updates live as sets are logged.
+// Wall TV. Rotates TODAY, SEASON and SPEED (when there are test results); updates live as sets are logged.
 import { api, esc, fitStage, live, avatar, pct, weekday, ICON } from './common.js';
+import { fmtTest } from './readiness.js';
 
 const stage = document.getElementById('stage');
 fitStage(stage, 1920, 1080);
 
-// ?screen=today or ?screen=season pins one screen (handy for testing or a second TV).
+// ?screen=today, ?screen=season or ?screen=speed pins one screen (handy for testing or a second TV).
 const pinned = new URLSearchParams(location.search).get('screen');
 let screen = pinned || 'today';
 let today = null;
 let season = null;
+let speed = null;
 let settings = {};
 
 async function load() {
   try {
-    [today, season, settings] = await Promise.all([api('/api/board/today'), api('/api/board/season'), api('/api/settings')]);
+    [today, season, settings, speed] = await Promise.all([api('/api/board/today'), api('/api/board/season'), api('/api/settings'), api('/api/board/speed').catch(() => null)]);
   } catch {
     // Server hiccup: keep showing the last good data.
   }
@@ -31,9 +33,8 @@ function header(title) {
     <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
       ${today ? `<div class="smoke pill" style="height:60px;padding:0 26px;gap:12px;font-family:var(--f-cond);font-weight:700;font-size:26px;letter-spacing:0.1em">
         <span aria-hidden="true" style="width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 0 0 5px rgba(255,255,255,0.18)"></span>${esc(weekday(today.day))}${board ? ` · ${esc(board.lift_short.toUpperCase())} DAY` : ''}</div>` : ''}
-      ${pinned ? '' : `<div role="img" aria-label="Screen ${screen === 'today' ? 1 : 2} of 2" class="smoke pill" style="height:60px;padding:0 20px;gap:8px">
-        <span style="width:${screen === 'today' ? 28 : 10}px;height:10px;border-radius:999px;background:${screen === 'today' ? '#fff' : 'rgba(255,255,255,0.3)'}"></span>
-        <span style="width:${screen === 'season' ? 28 : 10}px;height:10px;border-radius:999px;background:${screen === 'season' ? '#fff' : 'rgba(255,255,255,0.3)'}"></span></div>`}
+      ${pinned ? '' : `<div role="img" aria-label="Screen ${screens().indexOf(screen) + 1} of ${screens().length}" class="smoke pill" style="height:60px;padding:0 20px;gap:8px">
+        ${screens().map((k) => `<span style="width:${screen === k ? 28 : 10}px;height:10px;border-radius:999px;background:${screen === k ? '#fff' : 'rgba(255,255,255,0.3)'}"></span>`).join('')}</div>`}
     </div>
   </header>`;
 }
@@ -126,13 +127,46 @@ function seasonView() {
   </div>`;
 }
 
+// SPEED: fastest kids off the GPS pods, the 40, and the jumps. Only in the rotation once there are results.
+const SPEED_ICON = '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3L5 13h6l-1 8 8-10h-6z"></path></svg>';
+const JUMP_ICON = '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V6"></path><path d="M6.5 11.5L12 6l5.5 5.5"></path><path d="M4 3h16"></path></svg>';
+const hasSpeed = () => !!(speed && speed.boards && speed.boards.length);
+function screens() { return ['today', 'season', ...(settings.tv_speed_board !== 'off' && hasSpeed() ? ['speed'] : [])]; }
+
+function speedView() {
+  const b = (k) => (speed?.boards || []).find((x) => x.key === k);
+  const list = (bd, n, compact = true) => bd ? `<ol style="display:flex;flex-direction:column;gap:10px">${bd.leaders.slice(0, n).map((p, i) => row(i, p.athlete, { big: fmtTest(bd.key, p.value), small: bd.unit === 'mph' ? 'MPH' : bd.unit === 's' ? 'SECONDS' : '', compact })).join('')}</ol>` : '';
+  const none = (t) => `<div class="empty" style="font-size:24px">${t}</div>`;
+  const top = b('top_speed');
+  const sprint = b('dash40') || b('dash10') || b('shuttle');
+  const week = speed?.week || [];
+  return `<div class="tv fade">
+    ${header('SPEED')}
+    <div style="flex-grow:1;min-height:0;display:flex;gap:32px">
+      <section class="card board" style="flex:1 1 0;min-width:0;gap:20px">
+        ${boardHead(SPEED_ICON, 'Fastest', 'Top speed off the GPS pods')}
+        ${top ? list(top, 5) : none('SHOWS UP AFTER THE FIRST<br>PRACTICE WITH THE PODS.')}
+      </section>
+      <section class="card board" style="flex:1 1 0;min-width:0;gap:20px">
+        ${sprint ? boardHead(ICON.trend, sprint.name, 'Best time on file') + list(sprint, 5)
+          : boardHead(SPEED_ICON, 'Fastest this week', 'Top speed, last 7 days') + (week.length ? `<ol style="display:flex;flex-direction:column;gap:10px">${week.map((p, i) => row(i, p.athlete, { big: fmtTest('top_speed', p.value), small: 'MPH', compact: true })).join('')}</ol>` : none('NO PRACTICES<br>THIS WEEK YET.'))}
+      </section>
+      <section class="card board" style="flex:1 1 0;min-width:0;gap:20px">
+        ${boardHead(JUMP_ICON, 'Jumps', 'Best on file')}
+        ${['vertical', 'broad'].map((k) => b(k) ? `<div style="display:flex;flex-direction:column;gap:10px"><div class="split"><div>${k === 'vertical' ? 'VERTICAL' : 'BROAD'}</div><div aria-hidden="true"></div></div>${list(b(k), 3)}</div>` : '').join('') || none('NO JUMPS<br>TESTED YET.')}
+      </section>
+    </div>
+  </div>`;
+}
+
 function render(animate = true) {
-  stage.innerHTML = screen === 'season' ? seasonView() : todayView();
+  if (screen === 'speed' && !hasSpeed() && !pinned) screen = 'today';
+  stage.innerHTML = screen === 'season' ? seasonView() : screen === 'speed' ? speedView() : todayView();
   if (!animate) stage.querySelectorAll('.fade').forEach((el) => el.classList.remove('fade'));
 }
 
 function rotate() {
-  if (!pinned) { screen = screen === 'today' ? 'season' : 'today'; render(true); }
+  if (!pinned) { const list = screens(); screen = list[(list.indexOf(screen) + 1) % list.length]; render(true); }
   setTimeout(rotate, (Number(settings.tv_rotate_seconds) || 20) * 1000);
 }
 

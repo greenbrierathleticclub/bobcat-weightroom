@@ -1,11 +1,12 @@
-// Coach page: today's workout, roster, max day, fix bad sets, settings and backups.
+// Coach page: today's workout, roster, max day, practice load, speed & jumps, fix bad sets, settings and backups.
 import { api, esc, avatar } from './common.js';
 import { parseScheme, schemeLabel } from './scheme.js';
+import { TESTS, TEST, fmtTest, validTest } from './readiness.js';
 
 const main = document.getElementById('main');
 const tabsEl = document.getElementById('tabs');
 const dlg = document.getElementById('dlg');
-const TABS = [['workout', "TODAY'S WORKOUT"], ['roster', 'ROSTER'], ['maxday', 'MAX DAY'], ['sets', 'FIX A SET'], ['settings', 'SETTINGS & BACKUP']];
+const TABS = [['workout', "TODAY'S WORKOUT"], ['roster', 'ROSTER'], ['maxday', 'MAX DAY'], ['practice', 'PRACTICE LOAD'], ['speed', 'SPEED & JUMPS'], ['sets', 'FIX A SET'], ['settings', 'SETTINGS & BACKUP']];
 let tab = location.hash.slice(1) || 'workout';
 let flash = null;
 let SETTINGS = {};
@@ -260,6 +261,159 @@ async function maxdayView() {
   };
 }
 
+// ---------- Practice load ----------
+// GPS pod numbers from practice (or the coach's own call) move tomorrow's lift %s. Math in src/readiness.js.
+const FLAG_WORD = { high: 'HEAVY', normal: 'NORMAL', low: 'LIGHT', '': '—' };
+let pDay = null;
+async function practiceView() {
+  if (!pDay) { const y = new Date(); y.setDate(y.getDate() - 1); pDay = localDay(y); }
+  const [d, people] = await Promise.all([api(`/api/coach/practice?day=${pDay}`), api('/api/coach/athletes')]);
+  const byId = new Map(d.rows.map((r) => [r.athlete_id, r]));
+  const active = people.filter((a) => a.active);
+  const off = SETTINGS.load_adjust === 'off';
+  const hi = Number(SETTINGS.load_high_pts || -10), lo = Number(SETTINGS.load_low_pts || 5);
+  const n = (v, dp = 0) => (v == null ? '' : Number(v).toFixed(dp));
+  main.innerHTML = `<section class="card panel">
+    <div class="btns" style="justify-content:space-between"><h2>Practice load</h2>
+      <div class="btns"><label class="f" style="flex-direction:row;align-items:center;gap:10px">PRACTICE ON<input type="date" id="pd" value="${pDay}" style="width:auto"></label>
+      <button type="button" class="btn btn-main" id="pimp">IMPORT GPS FILE</button></div></div>
+    <p class="help">${off ? '<b>Turned off in Settings.</b> Flags still save, but no lift changes. ' : ''}Bring in the pods' file after practice (or set a kid by hand). Each kid is compared with his own group (OL/DL or skill) <i>that day</i>: way more load or collisions than the middle of his group is <b>heavy</b>, way less is <b>light</b>. On his next lift within 3 days, heavy drops every % set by <b>${Math.abs(hi)} points</b> (75% becomes ${75 + hi}%) and light adds <b>${lo}</b>. Fixed-pound sets and kid-picks sets never change. The rack tells him why.</p>
+    ${msg()}
+    <div class="btns">${d.days.map((x) => `<button type="button" class="btn btn-ghost sm${x.day === pDay ? ' on' : ''}" data-day="${x.day}">${esc(x.day.slice(5).replace('-', '/'))} · ${x.kids} kids${x.high ? ` · ${x.high} heavy` : ''}</button>`).join('') || '<span class="help">No practices brought in yet.</span>'}</div>
+    <div class="help"><b>${d.rows.length}</b> kids on file for this practice · <b>${d.high}</b> heavy · <b>${d.low}</b> light</div>
+    <div class="tablebox"><table><thead><tr><th>Name</th><th>Pos</th><th>Load</th><th>Collisions</th><th>Top mph</th><th>Why</th><th>Flag</th></tr></thead><tbody>
+    ${active.map((a) => { const r = byId.get(a.id) || {}; return `<tr><td><b>${esc(a.last_name)}</b>, ${esc(a.first_name)}</td><td>${esc(a.position || '')}</td>
+      <td>${n(r.load)}</td><td>${n(r.collisions)}</td><td>${n(r.top_speed_mph, 1)}</td><td class="gray" style="font-size:15px">${esc(r.why || '')}</td>
+      <td style="width:190px"><select data-flag="${a.id}" aria-label="Flag for ${esc(a.first_name)} ${esc(a.last_name)}">
+        <option value="auto"${!r.manual ? ' selected' : ''}>${r.manual ? 'Back to the numbers' : `Auto: ${FLAG_WORD[r.flag || '']}`}</option>
+        ${['high', 'normal', 'low'].map((f) => `<option value="${f}"${r.manual && r.flag === f ? ' selected' : ''}>${FLAG_WORD[f]}${r.manual && r.flag === f ? ' (coach)' : ''}</option>`).join('')}</select></td></tr>`; }).join('')}
+    </tbody></table></div>
+    ${d.rows.length ? '<div class="btns"><button type="button" class="btn btn-ghost sm" id="pclear" style="margin-left:auto">CLEAR THIS PRACTICE</button></div>' : ''}
+  </section>`;
+  main.querySelector('#pd').onchange = (e) => { pDay = e.target.value; practiceView(); };
+  main.querySelectorAll('[data-day]').forEach((b) => { b.onclick = () => { pDay = b.dataset.day; practiceView(); }; });
+  main.querySelectorAll('[data-flag]').forEach((s) => { s.onchange = async () => { await guarded(() => api('/api/coach/practice/flag', { body: { athlete_id: Number(s.dataset.flag), day: pDay, flag: s.value } })); practiceView(); }; });
+  main.querySelector('#pimp').onclick = () => csvDialog({
+    title: 'IMPORT PRACTICE (GPS)',
+    help: `Export the session from the pods' app as CSV (one row per player). It finds the columns on its own: a player name, and any of <code>Player Load</code>, <code>Collisions</code> / <code>Impacts</code>, <code>Max Speed</code> (m/s or mph), <code>Flag</code>. A <code>Date</code> column wins; otherwise it's saved as the practice on <b>${pDay}</b>. You can paste from a spreadsheet too.`,
+    url: '/api/coach/practice/import', extra: { day: pDay },
+    preview: (r) => `<p class="help"><b>${r.matched}</b> kids matched${r.days.length ? ` for ${r.days.join(', ')}` : ''}.${r.unmatched.length ? ` <b>Not on the roster:</b> ${r.unmatched.map(esc).join(', ')}.` : ''} ${r.skipped.map(esc).join(' ')}</p>
+      <div class="tablebox" style="max-height:40vh"><table><thead><tr><th>Name</th><th>Day</th><th>Load</th><th>Coll.</th><th>Top mph</th></tr></thead><tbody>
+      ${r.preview.map((p) => `<tr><td>${esc(p.name)}</td><td>${esc(p.day.slice(5))}</td><td>${n(p.load)}</td><td>${n(p.collisions)}</td><td>${n(p.top_speed_mph, 1)}</td></tr>`).join('')}</tbody></table></div>`,
+    ok: (r) => r.matched > 0,
+    done: (r) => { if (r.days.length) pDay = r.days.at(-1); say(`Brought in ${r.matched} kids.${r.unmatched.length ? ` ${r.unmatched.length} names didn't match the roster.` : ''}`); practiceView(); },
+  });
+  const clr = main.querySelector('#pclear');
+  if (clr) clr.onclick = async () => { if (confirmTwice(clr)) { await guarded(() => api('/api/coach/practice/clear', { body: { day: pDay } })); say(`Cleared ${pDay}.`); practiceView(); } };
+}
+
+// Second tap confirms (no browser pop-ups on the coach page).
+function confirmTwice(btn) {
+  if (btn.dataset.armed) return true;
+  btn.dataset.armed = '1'; btn.textContent = 'TAP AGAIN TO CLEAR';
+  setTimeout(() => { delete btn.dataset.armed; btn.textContent = 'CLEAR THIS PRACTICE'; }, 4000);
+  return false;
+}
+
+// File or paste → preview → save. Shared by practice load and test results.
+function csvDialog({ title, help, url, extra = {}, preview, ok, done }) {
+  dlg.innerHTML = `<div class="grid"><h2 style="margin:0;font-family:var(--f-cond)">${title}</h2>
+    <p class="help">${help}</p>
+    <input type="file" accept=".csv,text/csv,.txt" id="cf">
+    <textarea id="ct" rows="4" placeholder="…or paste rows here, header row first"></textarea>
+    <div id="prev"></div>
+    <div class="btns"><button type="button" class="btn btn-ghost" id="cx">CANCEL</button><button type="button" class="btn btn-main" id="go" disabled>SAVE</button></div></div>`;
+  dlg.showModal();
+  let text = '';
+  const check = async () => {
+    if (!text.trim()) return;
+    const r = await guarded(() => api(url, { body: { ...extra, csv: text, dry_run: true } }));
+    if (!r) return;
+    dlg.querySelector('#prev').innerHTML = preview(r);
+    dlg.querySelector('#go').disabled = !ok(r);
+  };
+  dlg.querySelector('#cx').onclick = () => dlg.close();
+  dlg.querySelector('#cf').onchange = async (e) => { text = await e.target.files[0].text(); check(); };
+  dlg.querySelector('#ct').oninput = (e) => { text = e.target.value; clearTimeout(dlg._t); dlg._t = setTimeout(check, 400); };
+  dlg.querySelector('#go').onclick = async () => { const r = await guarded(() => api(url, { body: { ...extra, csv: text } })); dlg.close(); if (r) done(r); };
+}
+
+// ---------- Speed & jumps ----------
+let tKey = 'dash40';
+let tDay = localDay();
+async function speedView() {
+  const [kids, groups] = await Promise.all([api('/api/coach/tests'), api('/api/coach/strength-speed')]);
+  const t = TEST[tKey];
+  main.innerHTML = `<section class="card panel">
+    <div class="btns" style="justify-content:space-between"><h2>Speed &amp; jumps</h2>
+      <div class="btns"><a class="btn btn-ghost sm" href="/tv?screen=speed" target="_blank" style="display:inline-flex;align-items:center;text-decoration:none">SEE THE TV BOARD</a>
+      <button type="button" class="btn btn-main" id="timp">PASTE RESULTS</button></div></div>
+    <p class="help">Top speed fills in by itself from the GPS file on the Practice load tab. Type the rest on test day. Times keep the <b>best</b> on file, so a slow retest never knocks a kid off the board. Jumps take <code>8'4"</code> or inches.</p>
+    ${msg()}
+    <div class="btns"><label class="f">Test<select id="tk">${TESTS.map((x) => `<option value="${x.key}"${x.key === tKey ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
+      <label class="f">Tested on<input type="date" id="td" value="${tDay}"></label></div>
+    <div class="tablebox" style="max-height:50vh"><table><thead><tr><th>Name</th><th>Pos</th><th>Best on file</th><th>New ${esc(t.name.toLowerCase())} (${t.unit === 's' ? 'seconds' : t.unit})</th></tr></thead><tbody>
+    ${kids.map((k) => `<tr><td><b>${esc(k.last_name)}</b>, ${esc(k.first_name)}</td><td>${esc(k.position || '')}</td><td>${k.best[tKey] ? `${fmtTest(tKey, k.best[tKey].value)} <span class="gray" style="font-size:14px">${esc(k.best[tKey].day.slice(5))}</span>` : '—'}</td>
+      <td style="width:200px"><input data-id="${k.id}" inputmode="decimal" aria-label="${esc(t.name)} for ${esc(k.first_name)} ${esc(k.last_name)}"></td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="btns"><button type="button" class="btn btn-main" id="tsave" style="margin-left:auto">SAVE RESULTS</button></div>
+  </section>
+  <section class="card panel" style="margin-top:18px"><h2>Strength vs speed</h2>
+    <p class="help">Strength is the Best Overall number (3-lift total scored for bodyweight). Speed is top speed off the pods. Each group is split at its own middle, so linemen are only compared with linemen. Top left is strong but slow: <b>needs speed</b>. Bottom right is fast but light on the bar: <b>needs the bar</b>.</p>
+    <div class="grid g2">${groups.map(scatter).join('')}</div>
+  </section>`;
+  main.querySelector('#tk').onchange = (e) => { tKey = e.target.value; speedView(); };
+  main.querySelector('#td').onchange = (e) => { tDay = e.target.value; };
+  main.querySelector('#tsave').onclick = async () => {
+    const entries = [...main.querySelectorAll('input[data-id]')].filter((i) => i.value.trim()).map((i) => ({ athlete_id: Number(i.dataset.id), test: tKey, value: i.value.trim() }));
+    if (!entries.length) { say('Nothing typed in yet.', true); return speedView(); }
+    const r = await guarded(() => api('/api/coach/tests', { body: { entries, day: tDay } }));
+    if (r) { say(`Saved ${r.saved}.${r.bad.length ? ` Skipped: ${r.bad.join('; ')}.` : ''}`, !!r.bad.length); speedView(); }
+  };
+  main.querySelector('#timp').onclick = () => csvDialog({
+    title: 'PASTE TEST RESULTS',
+    help: `One row per kid: a name column plus any of <code>40</code>, <code>10 split</code>, <code>Pro agility</code>, <code>Vertical</code>, <code>Broad</code>, <code>Top speed</code>. Saved as tested on <b>${tDay}</b>.`,
+    url: '/api/coach/tests/import', extra: { day: tDay },
+    preview: (r) => `<p class="help"><b>${r.saved}</b> results ready.${r.unmatched.length ? ` <b>Not on the roster:</b> ${r.unmatched.map(esc).join(', ')}.` : ''} ${r.bad.map(esc).join(' ')}</p>
+      <div class="tablebox" style="max-height:40vh"><table><thead><tr><th>Name</th><th>Test</th><th>Result</th></tr></thead><tbody>
+      ${r.preview.map((p) => `<tr><td>${esc(p.name)}</td><td>${esc(TEST[p.test].name)}</td><td>${fmtTest(p.test, p.value)}${validTest(p.test, p.value) ? '' : ' <b>(skipped: typo?)</b>'}</td></tr>`).join('')}</tbody></table></div>`,
+    ok: (r) => r.saved > 0,
+    done: (r) => { say(`Saved ${r.saved} results.${r.bad.length ? ` Skipped: ${r.bad.join('; ')}.` : ''}`, !!r.bad.length); speedView(); },
+  });
+}
+
+// One position group's scatter: speed across, strength up, split at the group's middles.
+function scatter(g) {
+  const W = 520, H = 360, L = 56, R = 16, T = 18, B = 46;
+  const title = g.group === 'line' ? 'OL / DL' : 'SKILL';
+  if (g.points.length < 2) return `<div class="card panel" style="gap:10px"><div class="label" style="font-size:20px">${title}</div><p class="help">Needs top speed and all three maxes for at least two kids.</p></div>`;
+  const xs = g.points.map((p) => p.speed), ys = g.points.map((p) => p.strength);
+  const pad = (lo, hi) => { const d = (hi - lo) || 1; return [lo - d * 0.12, hi + d * 0.12]; };
+  const [x0, x1] = pad(Math.min(...xs), Math.max(...xs)), [y0, y1] = pad(Math.min(...ys), Math.max(...ys));
+  const X = (v) => L + ((v - x0) / (x1 - x0)) * (W - L - R), Y = (v) => H - B - ((v - y0) / (y1 - y0)) * (H - T - B);
+  const few = g.points.length <= 12; // a crowd of names is unreadable: hover a dot, or read the lists below
+  const corner = (txt, x, y, anchor) => `<text x="${x}" y="${y}" text-anchor="${anchor}" fill="#a0a0a0" style="font:700 13px var(--f-cond);letter-spacing:.1em">${txt}</text>`;
+  const dots = g.points.map((p) => `<g><title>${esc(p.athlete.display)}: ${p.speed} mph, strength ${p.strength}</title>
+    <circle cx="${X(p.speed).toFixed(1)}" cy="${Y(p.strength).toFixed(1)}" r="7" fill="${p.box === 'both' ? '#fff' : 'rgba(255,255,255,0.18)'}" stroke="#fff" stroke-width="2"/>
+    ${few ? `<text x="${(X(p.speed) + 10).toFixed(1)}" y="${(Y(p.strength) + 4).toFixed(1)}" fill="#fff" style="font:600 13px var(--f-body)">${esc(p.athlete.display)}</text>` : ''}</g>`).join('');
+  const lists = { needs_speed: 'Needs speed', needs_bar: 'Needs the bar', needs_both: 'Needs both' };
+  return `<div class="card panel" style="gap:12px"><div class="label" style="font-size:20px">${title}</div>
+    <svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${title} strength against top speed">
+      <line x1="${X(g.mx)}" y1="${T}" x2="${X(g.mx)}" y2="${H - B}" stroke="rgba(255,255,255,0.25)" stroke-dasharray="4 5"/>
+      <line x1="${L}" y1="${Y(g.my)}" x2="${W - R}" y2="${Y(g.my)}" stroke="rgba(255,255,255,0.25)" stroke-dasharray="4 5"/>
+      <line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" stroke="rgba(255,255,255,0.4)"/>
+      <line x1="${L}" y1="${T}" x2="${L}" y2="${H - B}" stroke="rgba(255,255,255,0.4)"/>
+      ${corner('NEEDS SPEED', L + 8, T + 14, 'start')}${corner('STRONG + FAST', W - R - 4, T + 14, 'end')}
+      ${corner('NEEDS BOTH', L + 8, H - B - 8, 'start')}${corner('NEEDS THE BAR', W - R - 4, H - B - 8, 'end')}
+      <text x="${(L + W - R) / 2}" y="${H - 12}" text-anchor="middle" fill="#c8c8c8" style="font:700 14px var(--f-cond);letter-spacing:.1em">TOP SPEED (MPH) →</text>
+      <text x="16" y="${(T + H - B) / 2}" text-anchor="middle" fill="#c8c8c8" transform="rotate(-90 16 ${(T + H - B) / 2})" style="font:700 14px var(--f-cond);letter-spacing:.1em">STRENGTH →</text>
+      ${[x0, x1].map((v, i) => `<text x="${X(v)}" y="${H - B + 18}" text-anchor="${i ? 'end' : 'start'}" fill="#a0a0a0" style="font:600 12px var(--f-body)">${v.toFixed(1)}</text>`).join('')}
+      ${dots}
+    </svg>
+    ${Object.entries(lists).map(([k, label]) => { const who = g.points.filter((p) => p.box === k); return who.length ? `<p class="help"><b>${label}:</b> ${who.map((p) => esc(p.athlete.display)).join(', ')}</p>` : ''; }).join('')}
+  </div>`;
+}
+
 // ---------- Fix a set ----------
 let sDay = localDay();
 async function setsView() {
@@ -291,6 +445,10 @@ async function settingsView() {
       ${field('rack_sleep_seconds', 'Rack goes dark after (sec on start screen)', 'number', 'min="30"')}
       ${field('season_start', 'Season started (Most Improved counts from here)', 'date')}
       ${field('backup_hour', 'Nightly backup hour (0-23)', 'number', 'min="0" max="23"')}
+      <label class="f">Practice load changes lift %s<select name="load_adjust"><option value="on"${s.load_adjust !== 'off' ? ' selected' : ''}>On</option><option value="off"${s.load_adjust === 'off' ? ' selected' : ''}>Off</option></select></label>
+      ${field('load_high_pts', 'After a heavy practice, move % sets (points)', 'number', 'min="-30" max="0"')}
+      ${field('load_low_pts', 'After a light practice, move % sets (points)', 'number', 'min="0" max="15"')}
+      <label class="f">Speed board on the TV<select name="tv_speed_board"><option value="on"${s.tv_speed_board !== 'off' ? ' selected' : ''}>On (once there are results)</option><option value="off"${s.tv_speed_board === 'off' ? ' selected' : ''}>Off</option></select></label>
       <div class="btns" style="grid-column:1/-1"><button class="btn btn-main" type="submit" style="margin-left:auto">SAVE SETTINGS</button></div>
     </form></section>
     <section class="card panel" style="margin-top:18px"><h2>Backups</h2>
@@ -309,6 +467,6 @@ async function settingsView() {
   };
 }
 
-const VIEWS = { workout: workoutView, roster: rosterView, maxday: maxdayView, sets: setsView, settings: settingsView };
+const VIEWS = { workout: workoutView, roster: rosterView, maxday: maxdayView, practice: practiceView, speed: speedView, sets: setsView, settings: settingsView };
 render();
 window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (VIEWS[t] && t !== tab) { tab = t; render(); } });

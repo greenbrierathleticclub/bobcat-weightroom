@@ -113,6 +113,7 @@ export function createApp({ dataDir = join(root, 'data'), backupDir, coachPin = 
         return send(res, 404, { error: 'No such API' });
       }
       if (path === '/js/scheme.js') return serveFile(res, join(root, 'src', 'scheme.js')); // same parser on the coach page
+      if (path === '/js/readiness.js') return serveFile(res, join(root, 'src', 'readiness.js')); // same test list and math on the coach page
       if (/^\/rack\/\d+\/?$/.test(path)) return serveFile(res, join(PUBLIC, 'rack.html'));
       if (PAGES[path]) return serveFile(res, join(PUBLIC, PAGES[path]));
       if (path.startsWith('/photos/')) return serveFile(res, join(dataDir, 'photos', basename(path)));
