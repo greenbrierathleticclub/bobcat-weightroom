@@ -114,6 +114,7 @@ function signinView() {
       ${p ? `<div style="position:relative;height:100%;display:flex;flex-direction:column;gap:14px">
           <div class="label" style="font-size:22px;letter-spacing:0.14em">${p.all_done ? 'ALL DONE TODAY' : `${esc((p.item_lift || '').toUpperCase())} · SET ${p.sets_done + 1} OF ${p.sets_total}${p.sets_done ? ' · YOUR TURN' : ''}`}</div>
           <div style="font-weight:700;font-size:44px;line-height:1">${esc(p.full)}</div>
+          ${p.adjust && !p.all_done ? adjustChip(p.adjust) : ''}
           <div style="margin-top:auto;display:flex;align-items:baseline;gap:14px">
             <div class="disp" style="font-size:200px;letter-spacing:-0.02em;text-shadow:0 18px 40px rgba(0,0,0,0.45)">${p.next_weight ?? '—'}</div>
             <div class="cond gray" style="font-weight:800;font-size:40px">LB</div>
@@ -150,6 +151,15 @@ function findView() {
         <div class="label" style="font-size:16px;margin-top:6px">${esc([a.position, a.cls].filter(Boolean).join(' · '))}</div></div></button>`).join('')}</div>
     <button type="button" class="btn btn-ghost" data-act="back" style="height:76px;font-size:26px;flex-shrink:0">BACK</button>
   </div>`;
+}
+
+// Practice load moved his %s today (heavy practice = lighter, light practice = push). Set on the coach page.
+function adjustChip(adj, small = false) {
+  const n = `${adj.pts > 0 ? '+' : '−'}${Math.abs(adj.pts)}%`;
+  const why = adj.flag === 'high' ? 'HEAVY PRACTICE' : 'FRESH LEGS';
+  return `<div style="flex-shrink:0;display:flex;align-items:center;gap:14px">
+    <div class="pill chip-white" style="height:${small ? 44 : 50}px;padding:0 20px;gap:10px;font-family:var(--f-cond);font-weight:800;font-size:${small ? 21 : 24}px;letter-spacing:0.08em">${adj.label} <span class="disp" style="font-size:${small ? 26 : 30}px">${n}</span></div>
+    <div class="label" style="font-size:${small ? 18 : 20}px">${why}: EVERY % SET ${adj.pts < 0 ? 'DROPS' : 'GOES UP'}</div></div>`;
 }
 
 function currentSetIndex() { return S.session.sets.length; }
@@ -192,6 +202,7 @@ function logView() {
       <div class="cond clip" style="font-size:26px;letter-spacing:0.06em">${esc(s.item?.label || '')}</div>
       <div class="label nowrap" style="margin-left:auto;font-size:22px;letter-spacing:0.1em">SET ${i + 1}${extra ? '' : ` OF ${total}`}</div>
     </div>
+    ${s.adjust ? adjustChip(s.adjust, true) : ''}
     <section class="card" style="flex-shrink:0;padding:26px 28px;display:flex;gap:20px">
       <div class="sheen" aria-hidden="true"></div>
       <div style="position:relative;display:flex;flex-direction:column;gap:12px">

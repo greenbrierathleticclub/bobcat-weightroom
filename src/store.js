@@ -2,6 +2,7 @@
 import { tx } from './tx.js';
 import { e1rm, loadFromPct, beatYourLast, bodyweightScore } from './scoring.js';
 import { parseScheme, schemeLabel } from './scheme.js';
+import { flagPractice, adjustmentFor, adjustPct, TESTS, TEST, validTest, better, strengthSpeed } from './readiness.js';
 
 const LINE_POSITIONS = new Set(['OL', 'DL', 'OT', 'OG', 'T', 'G', 'C', 'DT', 'DE', 'NT', 'NG', 'OLINE', 'DLINE']);
 
@@ -207,16 +208,21 @@ export class Store {
   }
 
   // Weights for each set for one kid: % of his max, rounded down to the plate step.
-  plan(athleteId, item) {
+  // After a heavy (or light) practice the % sets move; see src/readiness.js. base_pct is what the coach wrote.
+  plan(athleteId, item, day = today(), adj = this.loadAdjust(athleteId, day)) {
     const max = item.has_max ? this.currentMax(athleteId, item.lift_id) : null;
     const step = this.roundTo();
-    return item.sets.map((s, i) => ({
-      n: i + 1,
-      reps: s.reps,
-      amrap: s.amrap,
-      pct: s.pct,
-      weight: s.lb != null ? s.lb : s.pct != null ? loadFromPct(max, s.pct, step) : null,
-    }));
+    return item.sets.map((s, i) => {
+      const pct = adjustPct(s.pct, adj);
+      return {
+        n: i + 1,
+        reps: s.reps,
+        amrap: s.amrap,
+        pct,
+        base_pct: s.pct,
+        weight: s.lb != null ? s.lb : pct != null ? loadFromPct(max, pct, step) : null,
+      };
+    });
   }
 
   // ---------- rack ----------
@@ -248,7 +254,8 @@ export class Store {
     const states = items.map((it) => ({ it, ...state(it) }));
     const cur = states.find((x) => !x.finished) || null;
     const item = cur ? cur.it : null;
-    const plan = item ? this.plan(a.id, item) : [];
+    const adjust = this.loadAdjust(a.id, day);
+    const plan = item ? this.plan(a.id, item, day, adjust) : [];
     const doneSets = cur ? cur.done : 0;
     const nextPlan = plan[Math.min(doneSets, plan.length - 1)];
     const lastSet = item ? this.q(`SELECT s.weight_lb FROM sets s JOIN sessions se ON se.id = s.session_id
@@ -267,6 +274,7 @@ export class Store {
       first_weight: plan[0] ? plan[0].weight : null,
       first_pct: plan[0] ? plan[0].pct : null,
       max,
+      adjust: adjust && plan.some((p) => p.base_pct != null) ? adjust : null,
       all_done: items.length > 0 && !cur,
     };
   }
@@ -323,7 +331,8 @@ export class Store {
     const item = s.workout_item_id ? this.item(s.workout_item_id) : null;
     const lift = this.liftById(s.lift_id);
     const sets = this.q('SELECT id, seq, weight_lb AS weight, reps, e1rm_lb AS e1rm, is_pr FROM sets WHERE session_id = ? AND voided = 0 ORDER BY seq, id').all(s.id);
-    const plan = item ? this.plan(a.id, item) : [];
+    const adjust = this.loadAdjust(a.id, s.day);
+    const plan = item ? this.plan(a.id, item, s.day, adjust) : [];
     const last = this.lastTime(a.id, s.lift_id, s.day);
     const best = this.bestToday(a.id, s.lift_id, s.day);
     const pct = best && last ? beatYourLast(best.e1rm, last.e1rm) : null;
@@ -343,7 +352,8 @@ export class Store {
       best,
       beat_pct: pct,
       rank: pct != null ? this.rankToday(s.lift_id, s.day, a.id) : null,
-      next: next ? { ...publicItem(next), first_weight: (this.plan(a.id, next)[0] || {}).weight ?? null } : null,
+      adjust: adjust && plan.some((p) => p.base_pct != null) ? adjust : null,
+      next: next ? { ...publicItem(next), first_weight: (this.plan(a.id, next, s.day, adjust)[0] || {}).weight ?? null } : null,
     };
   }
 
@@ -477,9 +487,150 @@ export class Store {
       most_improved: people.filter((p) => p.improve > 0).sort(by((p) => p.improve)).slice(0, limit),
     };
   }
+
+  // ---------- practice load (GPS pods) ----------
+  // One kid's adjustment for a lift day, from his most recent practice in the 3 days before. null = lift as written.
+  loadAdjust(athleteId, day = today()) {
+    const rows = this.q(`SELECT day, flag, why FROM practice_load WHERE athlete_id = ? AND day < ? AND day >= ? ORDER BY day DESC`)
+      .all(athleteId, day, shiftDay(day, -3));
+    return adjustmentFor(rows, day, this.settings());
+  }
+
+  // rows: [{ athlete_id, load, collisions, top_speed_mph, flag? }] for one practice day. Upserts, then flags the
+  // whole day against the team. A row the coach flagged by hand keeps his flag unless this row sets a new one.
+  savePracticeDay(day, rows, source = 'import') {
+    if (!/^\d{4}-\d\d-\d\d$/.test(String(day || ''))) throw httpError(400, 'Practice day must be YYYY-MM-DD');
+    const up = this.q(`INSERT INTO practice_load (athlete_id, day, load, collisions, top_speed_mph, flag, manual, source)
+                       VALUES ($a, $d, $load, $hits, $spd, $flag, $manual, $src)
+                       ON CONFLICT(athlete_id, day) DO UPDATE SET load = excluded.load, collisions = excluded.collisions,
+                         top_speed_mph = excluded.top_speed_mph, source = excluded.source,
+                         flag = CASE WHEN excluded.manual = 1 THEN excluded.flag ELSE practice_load.flag END,
+                         manual = CASE WHEN excluded.manual = 1 THEN 1 ELSE practice_load.manual END`);
+    tx(this.db, () => {
+      for (const r of rows) {
+        const flag = ['high', 'normal', 'low'].includes(r.flag) ? r.flag : '';
+        up.run({ $a: r.athlete_id, $d: day, $load: numOrNull(r.load), $hits: numOrNull(r.collisions), $spd: numOrNull(r.top_speed_mph), $flag: flag, $manual: flag ? 1 : 0, $src: source });
+        const spd = numOrNull(r.top_speed_mph);
+        if (spd != null && validTest('top_speed', spd)) {
+          this.q("DELETE FROM tests WHERE athlete_id = ? AND test = 'top_speed' AND day = ? AND source = 'gps'").run(r.athlete_id, day);
+          this.q("INSERT INTO tests (athlete_id, test, value, day, source) VALUES (?, 'top_speed', ?, ?, 'gps')").run(r.athlete_id, spd, day);
+        }
+      }
+      this.reflagDay(day);
+    });
+    this.onChange('practice');
+    return this.practiceDay(day);
+  }
+
+  reflagDay(day) {
+    const rows = this.q('SELECT id, athlete_id, load, collisions, flag, manual FROM practice_load WHERE day = ?').all(day)
+      .map((r) => ({ ...r, group: this.athlete(r.athlete_id)?.group }));
+    const set = this.q('UPDATE practice_load SET flag = ?, why = ? WHERE id = ?');
+    for (const r of flagPractice(rows)) set.run(r.flag || '', r.why || '', r.id);
+  }
+
+  // Coach sets one kid's flag by hand ('high' | 'normal' | 'low'), or 'auto' to go back to the numbers.
+  setPracticeFlag(athleteId, day, flag) {
+    if (!['high', 'normal', 'low', 'auto'].includes(flag)) throw httpError(400, 'Flag must be high, normal, low or auto');
+    tx(this.db, () => {
+      if (flag === 'auto') this.q('UPDATE practice_load SET manual = 0 WHERE athlete_id = ? AND day = ?').run(athleteId, day);
+      else this.q(`INSERT INTO practice_load (athlete_id, day, flag, manual, source) VALUES (?, ?, ?, 1, 'coach')
+                   ON CONFLICT(athlete_id, day) DO UPDATE SET flag = excluded.flag, manual = 1`).run(athleteId, day, flag);
+      this.reflagDay(day);
+    });
+    this.onChange('practice');
+    return this.practiceDay(day);
+  }
+
+  practiceDay(day) {
+    const rows = this.q(`SELECT p.*, a.first_name, a.last_name, a.position FROM practice_load p JOIN athletes a ON a.id = p.athlete_id
+                         WHERE p.day = ? ORDER BY a.last_name, a.first_name`).all(day);
+    const days = this.q('SELECT day, COUNT(*) AS kids, SUM(flag = \'high\') AS high, SUM(flag = \'low\') AS low FROM practice_load GROUP BY day ORDER BY day DESC LIMIT 14').all();
+    return { day, rows, days, high: rows.filter((r) => r.flag === 'high').length, low: rows.filter((r) => r.flag === 'low').length };
+  }
+
+  clearPracticeDay(day) {
+    tx(this.db, () => {
+      this.q('DELETE FROM practice_load WHERE day = ?').run(day);
+      this.q("DELETE FROM tests WHERE day = ? AND source = 'gps'").run(day);
+    });
+    this.onChange('practice');
+    return this.practiceDay(day);
+  }
+
+  // ---------- speed and jump tests ----------
+  addTests(entries, day = today(), source = 'coach') {
+    const bad = [];
+    let saved = 0;
+    const ins = this.q('INSERT INTO tests (athlete_id, test, value, day, source) VALUES (?, ?, ?, ?, ?)');
+    tx(this.db, () => {
+      for (const e of entries || []) {
+        if (!TEST[e.test]) { bad.push(`Unknown test "${e.test}"`); continue; }
+        if (!validTest(e.test, e.value)) { bad.push(`${e.value} doesn't look like a real ${TEST[e.test].name.toLowerCase()}`); continue; }
+        ins.run(Number(e.athlete_id), e.test, Number(e.value), day, source);
+        saved++;
+      }
+    });
+    if (saved) this.onChange('tests');
+    return { saved, bad };
+  }
+  deleteTest(id) { this.q('DELETE FROM tests WHERE id = ?').run(id); this.onChange('tests'); }
+
+  // Each kid's best in every test.
+  bestTests() {
+    const out = new Map();
+    const rows = this.q('SELECT t.* FROM tests t JOIN athletes a ON a.id = t.athlete_id WHERE a.active = 1').all();
+    for (const r of rows) {
+      const k = out.get(r.athlete_id) || {};
+      const cur = k[r.test];
+      if (!cur || better(r.test, r.value, cur.value)) k[r.test] = { value: r.value, day: r.day, id: r.id };
+      out.set(r.athlete_id, k);
+    }
+    return out;
+  }
+
+  testHistory(athleteId) {
+    return this.q('SELECT * FROM tests WHERE athlete_id = ? ORDER BY day DESC, id DESC').all(athleteId);
+  }
+
+  // TV speed board: top N in each test, plus the fastest kids this week from the pods.
+  speedBoard(limit = 5, day = today()) {
+    const best = this.bestTests();
+    const people = new Map(this.athletes().map((a) => [a.id, a]));
+    const boards = TESTS.map((t) => ({
+      key: t.key, name: t.name, short: t.short, unit: t.unit, lower: t.lower,
+      leaders: [...best].filter(([id, b]) => b[t.key] && people.has(id))
+        .map(([id, b]) => ({ athlete: pickAthlete(people.get(id)), value: b[t.key].value, day: b[t.key].day }))
+        .sort((x, y) => (t.lower ? x.value - y.value : y.value - x.value)).slice(0, limit),
+    })).filter((b) => b.leaders.length);
+    const weekAgo = shiftDay(day, -7);
+    const week = this.q(`SELECT athlete_id, MAX(value) AS value FROM tests WHERE test = 'top_speed' AND day > ? AND day <= ? GROUP BY athlete_id ORDER BY value DESC LIMIT ?`)
+      .all(weekAgo, day, limit).filter((r) => people.has(r.athlete_id)).map((r) => ({ athlete: pickAthlete(people.get(r.athlete_id)), value: r.value }));
+    return { boards, week };
+  }
+
+  // Strength (bodyweight-adjusted total, the Best Overall number) against top speed, split by line and skill.
+  strengthVsSpeed() {
+    const totalLifts = this.lifts().filter((l) => l.in_total);
+    const best = this.bestTests();
+    const pts = [];
+    for (const a of this.athletes()) {
+      const spd = best.get(a.id)?.top_speed?.value;
+      if (!spd || !a.bodyweight_lb) continue;
+      const lifts = totalLifts.map((l) => this.currentMax(a.id, l.id));
+      if (lifts.some((x) => !x)) continue;
+      const total = lifts.reduce((t, x) => t + x, 0);
+      pts.push({ athlete: pickAthlete(a), group: a.group, speed: spd, strength: Math.round(bodyweightScore(total, a.bodyweight_lb) * 10) / 10, total, bw: a.bodyweight_lb });
+    }
+    return ['line', 'skill'].map((g) => ({ group: g, ...strengthSpeed(pts.filter((p) => p.group === g)) }));
+  }
 }
 
 // ---------- helpers ----------
+export function shiftDay(day, n) {
+  const [y, m, d] = day.split('-').map(Number);
+  return today(new Date(y, m - 1, d + n));
+}
 export function httpError(status, message) {
   const e = new Error(message);
   e.status = status;

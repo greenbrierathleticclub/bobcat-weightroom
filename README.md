@@ -16,9 +16,9 @@ Phase 1 is typed-in reps. The data is already shaped for a camera to add bar spe
 
 **Rack flow:** idle (tap to start) → who's lifting (tap your name, or find it) → log each set with − / + / LOG SET → silent PR takeover if you beat your best → lift done, next lift.
 
-**TV:** flips between TODAY (Beat Your Last on the day's board lift, today's lifts, PRs today) and SEASON (Best Overall, Strongest OL/DL vs Skill, Most Improved). Updates the second a set is logged.
+**TV:** flips between TODAY (Beat Your Last on the day's board lift, today's lifts, PRs today), SEASON (Best Overall, Strongest OL/DL vs Skill, Most Improved) and SPEED (fastest off the GPS pods, the 40, vertical and broad; only once there are results). Updates the second a set is logged. `/tv?screen=speed` pins one screen.
 
-**Coach page:** load the day's workout, roster (with spreadsheet import), max day, strike bad sets, settings, backups.
+**Coach page:** load the day's workout, roster (with spreadsheet import), max day, practice load (GPS file), speed & jumps (with strength vs speed), strike bad sets, settings, backups.
 
 ## Try it on a Mac (proof of concept)
 
@@ -42,6 +42,22 @@ The first run loads 70 made-up kids and three weeks of fake lifting so every scr
 - **Best Overall** = squat + bench + clean maxes, scored for bodyweight: 10 × total ÷ bodyweight^(2/3). One list for everybody.
 - **Strongest** = raw 3-lift total, split OL/DL vs Skill (group comes from position; override per kid on the roster).
 - **Most Improved** = total now vs total at the first max day on or after "Season started" in Settings.
+
+## Practice load: lighter after a heavy practice
+
+After practice, bring the GPS pods' export into **Practice load** on the coach page (any CSV with a player name and any of load, collisions, max speed; m/s is turned into mph). You can also set any kid by hand.
+
+- Each kid is compared with **his own group (OL/DL or skill) at that practice**. Load at least 1.25 × the group's middle, or collisions at least 1.5 × the middle and 4 more, is **heavy**. Load at most 0.6 × the middle is **light**.
+- His next lift within 3 days moves every **%** set: heavy −10 points (75% → 65%), light +5. Never below 30% or above 95%. Fixed-pound and kid-picks sets never change. Settings can change the points or turn it off.
+- The rack shows a **LIGHTER TODAY** or **PUSH IT TODAY** chip so the kid knows why the bar is lighter.
+- A coach flag wins over the numbers, even when the file is brought in again. "Back to the numbers" undoes it.
+- Top speeds from the file land on the Speed board by themselves.
+
+No medical info goes in here: just practice numbers and a flag. Logic lives in `src/readiness.js` (shared with the coach page and the demo).
+
+## Speed & jumps
+
+Type results on test day (40, 10 split, pro agility, vertical, broad) or paste them from a spreadsheet. Each kid keeps his **best** on file, and obvious typos (a 46-second 40) are refused. **Strength vs speed** plots the Best Overall number against top speed, OL/DL and skill separately, split at each group's middle: *needs speed*, *needs the bar*, *needs both*, *strong + fast*.
 
 ## The coach's workout shorthand
 

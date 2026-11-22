@@ -1,6 +1,7 @@
 // Every API route in one list. No Node imports: the server uses it, and so does the browser demo.
 import { today } from './store.js';
-import { importRoster, exportRosterCsv } from './csv.js';
+import { importRoster, exportRosterCsv, importPractice, importTests } from './csv.js';
+import { parseTestValue } from './readiness.js';
 
 export function buildRoutes({ store, backups, savePhoto, backupFile }) {
   // [method, pattern, handler, coachOnly]
@@ -15,6 +16,7 @@ export function buildRoutes({ store, backups, savePhoto, backupFile }) {
     ['POST', '/api/sessions/:id/end', (p) => store.endSession(Number(p.id))],
     ['GET', '/api/board/today', (p, q) => store.todayBoard(q.get('day') || today())],
     ['GET', '/api/board/season', () => store.seasonBoard()],
+    ['GET', '/api/board/speed', (p, q) => store.speedBoard(5, q.get('day') || today())],
     ['GET', '/api/settings', () => store.settings()],
     ['GET', '/api/time', () => ({ now: Date.now(), day: today() })],
 
@@ -34,6 +36,17 @@ export function buildRoutes({ store, backups, savePhoto, backupFile }) {
     ['POST', '/api/coach/lifts', (p, q, b) => store.addLift(b), true],
     ['GET', '/api/coach/sets', (p, q) => store.setsForDay(q.get('day') || today()), true],
     ['POST', '/api/coach/sets/:id/void', (p, q, b) => store.voidSet(Number(p.id), b.voided !== false), true],
+    ['GET', '/api/coach/practice', (p, q) => store.practiceDay(q.get('day') || today()), true],
+    ['POST', '/api/coach/practice/import', (p, q, b) => importPractice(store, b.csv, { day: b.day || today(), dryRun: !!b.dry_run }), true],
+    ['POST', '/api/coach/practice', (p, q, b) => store.savePracticeDay(b.day, b.rows || [], 'coach'), true],
+    ['POST', '/api/coach/practice/flag', (p, q, b) => store.setPracticeFlag(Number(b.athlete_id), b.day, b.flag), true],
+    ['POST', '/api/coach/practice/clear', (p, q, b) => store.clearPracticeDay(b.day), true],
+    ['GET', '/api/coach/tests', () => { const best = store.bestTests(); return store.athletes().map((a) => ({ id: a.id, first_name: a.first_name, last_name: a.last_name, position: a.position, group: a.group, best: best.get(a.id) || {} })); }, true],
+    ['POST', '/api/coach/tests', (p, q, b) => store.addTests((b.entries || []).map((e) => ({ ...e, value: parseTestValue(e.test, e.value) })), b.day || today(), 'coach'), true],
+    ['POST', '/api/coach/tests/import', (p, q, b) => importTests(store, b.csv, { day: b.day || today(), dryRun: !!b.dry_run }, parseTestValue), true],
+    ['GET', '/api/coach/tests/:athlete', (p) => store.testHistory(Number(p.athlete)), true],
+    ['DELETE', '/api/coach/tests/:id', (p) => store.deleteTest(Number(p.id)) || { ok: true }, true],
+    ['GET', '/api/coach/strength-speed', () => store.strengthVsSpeed(), true],
     ['POST', '/api/coach/settings', (p, q, b) => store.saveSettings(b), true],
     ['GET', '/api/coach/backups', () => backups.status(), true],
     ['POST', '/api/coach/backups', () => backups.run('manual'), true],

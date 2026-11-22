@@ -72,6 +72,31 @@ export function seedDemo(store) {
         }
       }
     }
+    // Yesterday's practice off the GPS pods, so a few kids lift lighter (or heavier) today.
+    const yesterday = dayStr(-1);
+    const isLine = (p) => ['OL', 'DL'].includes(p);
+    store.savePracticeDay(yesterday, kids.map((kid, i) => {
+      const pos = kid.a.position;
+      const heavy = i % 11 === 3, light = i % 13 === 5;
+      return {
+        athlete_id: kid.a.id,
+        load: Math.round((isLine(pos) ? 360 : 420) * (0.85 + rnd() * 0.3) * (heavy ? 1.55 : light ? 0.45 : 1)),
+        collisions: Math.round((isLine(pos) ? 14 : ['LB', 'RB', 'TE'].includes(pos) ? 10 : 4) * (0.7 + rnd() * 0.6)),
+        top_speed_mph: Math.round((isLine(pos) ? 15.2 : ['WR', 'DB', 'RB'].includes(pos) ? 19 : 17.2) * (0.92 + rnd() * 0.14) * 10) / 10,
+      };
+    }), 'demo');
+
+    // Test day results (made up): 40, pro agility, vertical, broad.
+    const tests = [];
+    for (const kid of kids) {
+      if (rnd() < 0.25) continue;
+      const fast = isLine(kid.a.position) ? 0 : ['WR', 'DB', 'RB'].includes(kid.a.position) ? 1 : 0.5;
+      tests.push({ athlete_id: kid.a.id, test: 'dash40', value: Math.round((5.55 - fast * 0.75 + rnd() * 0.35) * 100) / 100 });
+      tests.push({ athlete_id: kid.a.id, test: 'shuttle', value: Math.round((4.95 - fast * 0.5 + rnd() * 0.3) * 100) / 100 });
+      tests.push({ athlete_id: kid.a.id, test: 'vertical', value: Math.round((22 + fast * 8 + rnd() * 6) * 2) / 2 });
+      tests.push({ athlete_id: kid.a.id, test: 'broad', value: Math.round(88 + fast * 18 + rnd() * 12) });
+    }
+    store.addTests(tests, testDay2, 'demo');
     return { athletes: kids.length, days: days.length, testDay1, testDay2 };
   });
 }

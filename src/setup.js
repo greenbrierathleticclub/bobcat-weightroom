@@ -14,6 +14,10 @@ export const DEFAULT_SETTINGS = {
   rack_sleep_seconds: '300',   // go dark after this long on the idle screen
   season_start: '',            // YYYY-MM-DD; Most Improved compares to the first max on or after this
   backup_hour: '22',           // nightly backup, 24h clock
+  load_adjust: 'on',           // 'off' = practice load never changes lift %s
+  load_high_pts: '-10',        // after a heavy practice, every % set moves this many points (75% -> 65%)
+  load_low_pts: '5',           // after a light practice / fresh legs
+  tv_speed_board: 'on',        // third TV screen: speed and jump leaders
 };
 
 export function setupDb(db, schemaSql) {

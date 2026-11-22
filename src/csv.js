@@ -124,3 +124,135 @@ export function exportRosterCsv(store) {
   }
   return lines.map((l) => l.map((c) => (/[",\n]/.test(String(c)) ? `"${String(c).replace(/"/g, '""')}"` : c)).join(',')).join('\n') + '\n';
 }
+
+// ---------- practice load and test results ----------
+// The GPS pods' export (Catapult, STATSports, Polar, Pod Sideline...) all name columns a little differently,
+// so columns are found by what they contain, not an exact name.
+const LOOSE = {
+  date: (h) => /^(date|day|session date|practice date|session)$/.test(h),
+  load: (h) => /\bload\b|workload/.test(h) && !/\/\s*min|per min|rate/.test(h),
+  collisions: (h) => /collision|impact|contact|\bhits?\b|tackles?/.test(h) && !/load/.test(h),
+  top_speed: (h) => /(top|max|peak) ?(speed|velocity)|^vmax|^max vel/.test(h),
+  flag: (h) => /^(flag|status|readiness)$/.test(h),
+  dash40: (h) => /^(40|40 ?yd|40 ?yard( dash)?|forty|40 dash|40 time)$/.test(h),
+  dash10: (h) => /^(10|10 ?yd|10 ?yard|10 split|10 ?yd split|10 yard split)$/.test(h),
+  shuttle: (h) => /shuttle|pro agility|5 ?10 ?5|^agility$/.test(h),
+  vertical: (h) => /^vert|vertical/.test(h),
+  broad: (h) => /broad/.test(h),
+};
+
+function looseHeader(cells) {
+  const map = mapHeader(cells);
+  const units = {};
+  cells.forEach((raw, i) => {
+    const h = raw.toLowerCase().replace(/[_.]/g, ' ').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+    const bare = h.replace(/\s*\(.*\)\s*$/, '').trim();
+    for (const [key, test] of Object.entries(LOOSE)) {
+      if (map[key] == null && (test(h) || test(bare))) { map[key] = i; units[key] = h; }
+    }
+    if (map.name == null && /^(player|athlete)( name)?$|^name$/.test(bare)) map.name = i;
+  });
+  return { map, units };
+}
+
+function parseDay(s) {
+  const t = String(s || '').trim();
+  let m = t.match(/^(\d{4})-(\d\d)-(\d\d)/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (m) return `${m[3].length === 2 ? '20' + m[3] : m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+  return null;
+}
+
+// Finds a kid from a name cell: "First Last", "Last, First", or "F. Last" when the last name is unique.
+export function nameMatcher(store) {
+  const people = store.athletes({ includeInactive: true });
+  const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z' -]/g, '').replace(/\s+/g, ' ').trim();
+  const full = new Map(people.map((a) => [norm(`${a.first_name} ${a.last_name}`), a]));
+  return (first, last, whole) => {
+    if (whole && !first && !last) {
+      const w = String(whole).replace(/^#?\d+\s+/, '');
+      if (w.includes(',')) [last, first] = w.split(',').map((x) => x.trim());
+      else { const parts = w.trim().split(/\s+/); first = parts.shift(); last = parts.join(' '); }
+    }
+    const hit = full.get(norm(`${first} ${last}`));
+    if (hit) return hit;
+    const sameLast = people.filter((a) => norm(a.last_name) === norm(last));
+    const f = norm(first).replace(/\.$/, '');
+    const byInitial = sameLast.filter((a) => f && norm(a.first_name).startsWith(f.slice(0, 1)));
+    if (byInitial.length === 1) return byInitial[0];
+    return null;
+  };
+}
+
+const toMph = (v, unitHeader) => {
+  if (v == null) return null;
+  if (/m\/s|mps|metres per|meters per/.test(unitHeader || '')) return Math.round(v * 2.23694 * 10) / 10;
+  if (/km/.test(unitHeader || '')) return Math.round(v * 0.621371 * 10) / 10;
+  if (v > 0 && v < 13 && !/mph/.test(unitHeader || '')) return Math.round(v * 2.23694 * 10) / 10; // nobody tops out under 13 mph: it's m/s
+  return v;
+};
+
+// Practice load CSV → { days: {day: rows}, matched, unmatched: [names], preview }. dryRun = preview only.
+export function importPractice(store, text, { day = today(), dryRun = false } = {}) {
+  const rows = parseCsv(text);
+  const empty = { matched: 0, unmatched: [], days: [], preview: [], skipped: [] };
+  if (rows.length < 2) return { ...empty, skipped: ['No data rows found'] };
+  const { map: h, units } = looseHeader(rows[0]);
+  if (h.name == null && (h.first_name == null || h.last_name == null)) return { ...empty, skipped: ['Need a player name column ("Name", "Player", or "First" + "Last")'] };
+  if (h.load == null && h.collisions == null && h.top_speed == null && h.flag == null) return { ...empty, skipped: ['Need at least one of: load, collisions, top speed, flag'] };
+  const find = nameMatcher(store);
+  const get = (r, k) => (h[k] != null ? String(r[h[k]] ?? '').trim() : '');
+  const num = (s) => { const x = parseFloat(String(s).replace(/[^0-9.\-]/g, '')); return Number.isFinite(x) ? x : null; };
+  const byDay = new Map();
+  const out = { ...empty, unmatched: [] };
+  for (const r of rows.slice(1)) {
+    const who = find(get(r, 'first_name'), get(r, 'last_name'), get(r, 'name'));
+    const label = get(r, 'name') || `${get(r, 'first_name')} ${get(r, 'last_name')}`.trim();
+    if (!who) { if (label && !/^(team|average|avg|total)/i.test(label)) out.unmatched.push(label); continue; }
+    const d = parseDay(get(r, 'date')) || day;
+    const flagRaw = get(r, 'flag').toLowerCase();
+    const row = {
+      athlete_id: who.id,
+      load: num(get(r, 'load')),
+      collisions: num(get(r, 'collisions')),
+      top_speed_mph: toMph(num(get(r, 'top_speed')), units.top_speed),
+      flag: /high|heavy|red|limit/.test(flagRaw) ? 'high' : /low|light|fresh|green/.test(flagRaw) ? 'low' : /normal|ok|yellow/.test(flagRaw) ? 'normal' : '',
+    };
+    if (!byDay.has(d)) byDay.set(d, []);
+    byDay.get(d).push(row);
+    out.matched++;
+    out.preview.push({ name: `${who.first_name} ${who.last_name}`, day: d, load: row.load, collisions: row.collisions, top_speed_mph: row.top_speed_mph, flag: row.flag });
+  }
+  out.days = [...byDay.keys()].sort();
+  if (!dryRun) for (const [d, rs] of byDay) store.savePracticeDay(d, rs, 'import');
+  return out;
+}
+
+// Test results CSV: a name column plus any of 40, 10 split, shuttle / pro agility, vertical, broad, top speed.
+export function importTests(store, text, { day = today(), dryRun = false } = {}, parseValue) {
+  const rows = parseCsv(text);
+  if (rows.length < 2) return { saved: 0, unmatched: [], bad: ['No data rows found'], preview: [] };
+  const { map: h, units } = looseHeader(rows[0]);
+  const keys = ['top_speed', 'dash40', 'dash10', 'shuttle', 'vertical', 'broad'].filter((k) => h[k] != null);
+  if (!keys.length) return { saved: 0, unmatched: [], bad: ['No test columns found (40, 10 split, shuttle, vertical, broad, top speed)'], preview: [] };
+  const find = nameMatcher(store);
+  const get = (r, k) => (h[k] != null ? String(r[h[k]] ?? '').trim() : '');
+  const entries = [];
+  const out = { saved: 0, unmatched: [], bad: [], preview: [] };
+  for (const r of rows.slice(1)) {
+    const who = find(get(r, 'first_name'), get(r, 'last_name'), get(r, 'name'));
+    const label = get(r, 'name') || `${get(r, 'first_name')} ${get(r, 'last_name')}`.trim();
+    if (!who) { if (label) out.unmatched.push(label); continue; }
+    for (const k of keys) {
+      let v = parseValue(k, get(r, k));
+      if (v == null) continue;
+      if (k === 'top_speed') v = toMph(v, units.top_speed);
+      entries.push({ athlete_id: who.id, test: k, value: v });
+      out.preview.push({ name: `${who.first_name} ${who.last_name}`, test: k, value: v });
+    }
+  }
+  if (dryRun) { out.saved = entries.length; return out; }
+  const r = store.addTests(entries, day, 'import');
+  return { ...out, saved: r.saved, bad: r.bad };
+}

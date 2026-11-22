@@ -21,7 +21,7 @@ const read = (...p) => readFileSync(join(root, ...p), 'utf8');
 const write = (p, text) => writeFileSync(join(out, p), text);
 
 // Engine: the real server logic, unchanged.
-for (const f of ['store', 'scheme', 'scoring', 'csv', 'tx', 'setup', 'routes', 'demo-data']) copyFileSync(join(root, 'src', `${f}.js`), join(out, 'engine', `${f}.js`));
+for (const f of ['store', 'scheme', 'scoring', 'readiness', 'csv', 'tx', 'setup', 'routes', 'demo-data']) copyFileSync(join(root, 'src', `${f}.js`), join(out, 'engine', `${f}.js`));
 for (const f of ['boot', 'sqlite-adapter']) copyFileSync(join(root, 'demo-src', `${f}.js`), join(out, 'engine', `${f}.js`));
 write('engine/schema.js', `export default ${JSON.stringify(read('src', 'schema.sql'))};\n`);
 copyFileSync(sqljs, join(out, 'engine', 'sql-asm.js'));
@@ -30,6 +30,7 @@ copyFileSync(sqljs, join(out, 'engine', 'sql-asm.js'));
 const relink = (s) => s
   .replace(/(["'(])\/(css|js|img)\//g, '$1$2/')
   .replace(/href="\/tv"/g, 'href="tv.html"')
+  .replace(/href="\/tv\?/g, 'href="tv.html?')
   .replace(/href="\/coach"/g, 'href="coach.html"')
   .replace(/href="\/rack\/\$\{i \+ 1\}"/g, 'href="rack.html?rack=${i + 1}"');
 for (const page of ['rack', 'tv', 'coach']) {
@@ -40,6 +41,7 @@ for (const page of ['rack', 'tv', 'coach']) {
 }
 for (const f of ['common', 'rack', 'tv', 'coach']) write(`app/js/${f}.js`, relink(read('public', 'js', `${f}.js`)));
 copyFileSync(join(root, 'src', 'scheme.js'), join(out, 'app', 'js', 'scheme.js'));
+copyFileSync(join(root, 'src', 'readiness.js'), join(out, 'app', 'js', 'readiness.js'));
 copyFileSync(join(root, 'demo-src', 'demo-shim.js'), join(out, 'app', 'js', 'demo-shim.js'));
 copyFileSync(join(root, 'public', 'img', 'shield.svg'), join(out, 'app', 'img', 'shield.svg'));
 
