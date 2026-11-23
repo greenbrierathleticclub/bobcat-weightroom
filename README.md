@@ -1,5 +1,10 @@
 # Bobcat Weight Room
 
+> **Moved (November 2026).** The weight room now lives inside the team's Bobcat Football app, which is private:
+> one roster, one login list, rack tablets at `/rack/N` and the wall TV at `/tv`, with no box in the weight room
+> (the tablets keep their own offline copy). GPS pods feed practice load to it on their own. This repository is
+> archived and kept read-only for reference. It never held real athlete data, only made-up demo kids.
+
 Rack tablets, a wall TV, and a coach page for the Greenbrier High School weight room.
 Kids log their reps at the rack, the TV ranks who beat their last, and PRs get a full-screen moment.
 It runs on one small computer on the weight room's own Wi-Fi. No internet, no school IT, no subscriptions.
