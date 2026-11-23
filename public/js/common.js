@@ -15,14 +15,21 @@ const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ESC[c]);
 
 // Scale a fixed-size stage to fit the window, letterboxed.
-export function fitStage(stage, w, h) {
+// flexH: [min, max] lets the stage grow or shrink in height to match the screen's shape
+// (rack screen: tall Android tablets and 4:3 iPads both fill edge to edge).
+export function fitStage(stage, w, h, { flexH } = {}) {
   const fit = () => {
-    const s = Math.min(window.innerWidth / w, window.innerHeight / h);
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const H = flexH ? Math.round(Math.min(flexH[1], Math.max(flexH[0], (w * vh) / vw))) : h;
+    const s = Math.min(vw / w, vh / H);
     stage.style.width = `${w}px`;
-    stage.style.height = `${h}px`;
+    stage.style.height = `${H}px`;
+    stage.style.setProperty('--stage-h', `${H}px`);
     stage.style.transform = `scale(${s})`;
   };
   window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', () => setTimeout(fit, 200));
   fit();
 }
 

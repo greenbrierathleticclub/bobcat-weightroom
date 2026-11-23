@@ -43,7 +43,7 @@ for (const f of ['common', 'rack', 'tv', 'coach']) write(`app/js/${f}.js`, relin
 copyFileSync(join(root, 'src', 'scheme.js'), join(out, 'app', 'js', 'scheme.js'));
 copyFileSync(join(root, 'src', 'readiness.js'), join(out, 'app', 'js', 'readiness.js'));
 copyFileSync(join(root, 'demo-src', 'demo-shim.js'), join(out, 'app', 'js', 'demo-shim.js'));
-copyFileSync(join(root, 'public', 'img', 'shield.svg'), join(out, 'app', 'img', 'shield.svg'));
+for (const f of ['shield.svg', 'rack-icon-180.png']) copyFileSync(join(root, 'public', 'img', f), join(out, 'app', 'img', f));
 
 // Fonts go inline so the page needs nothing but its own files.
 const css = read('public', 'css', 'modern.css').replace(/url\('\/fonts\/([^']+)'\)/g, (_, f) =>

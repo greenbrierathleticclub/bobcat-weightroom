@@ -30,7 +30,8 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--ground); color: var(--white); font-family: var(--f-body); }
-body.screen { overflow: hidden; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+body.screen { overflow: hidden; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-touch-callout: none; overscroll-behavior: none; }
+body.screen { position: fixed; inset: 0; } /* no rubber-band scroll on iPad Safari */
 button { font: inherit; color: inherit; }
 
 /* A fixed-size canvas (800x1280 rack, 1920x1080 TV) scaled to fit whatever screen it's on. */

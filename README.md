@@ -10,7 +10,7 @@ Phase 1 is typed-in reps. The data is already shaped for a camera to add bar spe
 
 | Screen | Address | Runs on |
 |---|---|---|
-| Rack tablet | `http://<computer>:8080/rack/1`, `/rack/2`, ... | Galaxy Tab A9+, portrait, pinned |
+| Rack tablet | `http://<computer>:8080/rack/1`, `/rack/2`, ... | iPad (10.2"), portrait, Guided Access |
 | Wall board | `http://<computer>:8080/tv` | The TV, via the Pi's HDMI |
 | Coach page | `http://<computer>:8080/coach` | Coach's phone or laptop |
 
@@ -79,15 +79,22 @@ Save as CSV. Columns it understands (header names are matched loosely): `First`,
 
 `Rack` puts a kid's name on that rack's tablet as a big button. Everybody else taps FIND MY NAME.
 
-## Setting up a rack tablet (Galaxy Tab A9+)
+## Setting up a rack tablet (iPad 8th gen, 10.2")
 
-1. Connect it to the weight room Wi-Fi.
-2. In Chrome, open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, add `http://<pi address>:8080`, set it to Enabled, relaunch. This lets the page keep the screen on mid-workout and install full-screen.
-3. Open `http://<pi address>:8080/rack/1`, then Chrome menu → Add to home screen → Install.
-4. Open it from the home screen icon (it runs full screen).
-5. Settings → Display → Screen timeout: 2 minutes. The app keeps the screen on while a kid is lifting and lets it turn off when nobody's there.
-6. Settings → Security and privacy → More security settings → Pin windows: on. Then open the app, tap Recents, tap the app icon → Pin this app. Kids can't leave it.
-7. Settings → Battery → Protect battery (name varies by update; stops charging around 80-85%). Charges in the office overnight.
+The rack screen fits itself to the tablet: tall Android tablets and 4:3 iPads both fill edge to edge.
+
+1. Settings → Wi-Fi: join the weight room Wi-Fi.
+2. Settings → General → Software Update → Automatic Updates: off (no surprise update screens mid-lift).
+3. Settings → Display & Brightness → Auto-Lock: **Never**. Set brightness around 60%: the screen stays on all practice, and that's what makes one charge last the day.
+4. In Safari, open `http://<pi address>:8080/rack/1` (rack 2 tablet gets `/rack/2`, and so on).
+5. Share button → **Add to Home Screen** → Add. Open it from the new Bobcat icon; it runs full screen with no address bar.
+6. Settings → Accessibility → **Guided Access**: on. Passcode Settings → set a Guided Access passcode only coaches know. Display Auto-Lock (inside Guided Access): Never.
+7. Open the Bobcat icon, hold the iPad upright, **triple-click the Home button** → Options: turn off Sleep/Wake Button, Volume Buttons and Motion (locks it portrait) → Start. Kids are now stuck in the rack screen.
+8. To get out (end of day, charging): triple-click Home, type the passcode, End.
+
+Nightly: take it off the rack, charge it in the office, and put it back on in the morning. It reopens right where it was.
+
+Android tablet instead (Galaxy Tab A9+/A11+): in Chrome open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, add `http://<pi address>:8080`, Enable, relaunch (lets the page keep the screen awake). Open the rack address → menu → Add to home screen → Install. Settings → Display → Screen timeout 2 minutes. Settings → Security → Pin windows on, then pin the app. Settings → Battery → Protect battery.
 
 ## The Pi (the real setup)
 

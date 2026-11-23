@@ -40,3 +40,14 @@
 .pr .ring { position: absolute; left: 50%; top: 560px; border-radius: 50%; }
 .pr .band { position: absolute; left: -400px; right: -400px; transform: rotate(-7deg); overflow: hidden; }
 .pr .band div { white-space: nowrap; font-family: var(--f-disp); font-weight: 900; letter-spacing: 0.04em; will-change: transform; }
+
+/* 4:3 tablets (iPad 10.2" portrait = 800 x ~1067 stage). Same layout, tighter rows. */
+.short .screen-rack { padding: 24px 26px; gap: 14px; }
+.short .tiles { max-height: 452px; }
+.short .tile { height: 140px; padding: 14px 16px; }
+.short .tile .disp { font-size: 44px !important; }
+.short .crewlist li { height: 64px; }
+.short .ladder li { height: 48px; }
+.short .ladder .setw { font-size: 32px; }
+.short .tap-start { height: 104px; font-size: 40px; }
+.short .stepper { width: 84px; height: 84px; }

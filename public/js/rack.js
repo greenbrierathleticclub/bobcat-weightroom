@@ -2,7 +2,12 @@
 import { api, esc, fitStage, live, avatar, pct, weekday, ICON } from './common.js';
 
 const stage = document.getElementById('stage');
-fitStage(stage, 800, 1280);
+fitStage(stage, 800, 1280, { flexH: [1000, 1280] }); // 800 wide; height follows the tablet (1067 on a 4:3 iPad, 1280 on a Tab A9+)
+// Short = 4:3 screens like the iPad. Same screens, tighter type.
+const short = () => (parseInt(stage.style.height, 10) || 1280) < 1180;
+const sz = (tall, small) => (short() ? small : tall);
+window.addEventListener('resize', () => { stage.classList.toggle('short', short()); });
+stage.classList.toggle('short', short());
 
 const rackId = Number(new URLSearchParams(location.search).get('rack') || location.pathname.split('/')[2]) || 1;
 const S = {
@@ -66,16 +71,16 @@ function personLine(a, extra = '') {
 // ---------- screens ----------
 function idleView() {
   const item = boardItem();
-  const crew = S.crew.slice(0, 4);
+  const crew = S.crew.slice(0, sz(4, 3));
   const more = S.crew.length - crew.length;
   return `<div class="screen-rack" data-act="start">
     ${header()}
-    <div style="margin-top:40px;display:flex;flex-direction:column;align-items:center;gap:14px">
+    <div style="margin-top:${sz(40, 6)}px;display:flex;flex-direction:column;align-items:center;gap:${sz(14, 8)}px">
       <div class="label" style="font-size:24px;letter-spacing:0.2em">${S.day ? esc(weekday(S.day)) : ''}${item ? ` · ${esc(item.lift_short.toUpperCase())} DAY` : ''}</div>
-      <div class="disp" style="font-size:300px;letter-spacing:-0.02em;text-shadow:0 26px 60px rgba(0,0,0,0.5)">${rackId}</div>
+      <div class="disp" style="font-size:${sz(300, 210)}px;letter-spacing:-0.02em;text-shadow:0 26px 60px rgba(0,0,0,0.5)">${rackId}</div>
       <div class="cond" style="font-weight:800;font-size:40px;letter-spacing:0.3em">RACK</div>
     </div>
-    <div style="margin-top:30px">${liftPill(item)}</div>
+    <div style="margin-top:${sz(30, 12)}px">${liftPill(item)}</div>
     ${crew.length ? `<section class="card" style="padding:24px;display:flex;flex-direction:column;gap:14px">
       <div class="label" style="font-size:22px;letter-spacing:0.14em">ON THIS RACK TODAY</div>
       <ol class="crewlist" style="display:flex;flex-direction:column;gap:10px">
@@ -109,21 +114,21 @@ function signinView() {
   return `<div class="screen-rack">
     ${header()}
     ${liftPill(item)}
-    <section class="card" style="flex-grow:1;min-height:0;padding:30px;display:flex;flex-direction:column">
+    <section class="card" style="flex-grow:1;min-height:0;padding:${sz(30, 22)}px;display:flex;flex-direction:column">
       <div class="sheen" aria-hidden="true"></div>
       ${p ? `<div style="position:relative;height:100%;display:flex;flex-direction:column;gap:14px">
           <div class="label" style="font-size:22px;letter-spacing:0.14em">${p.all_done ? 'ALL DONE TODAY' : `${esc((p.item_lift || '').toUpperCase())} · SET ${p.sets_done + 1} OF ${p.sets_total}${p.sets_done ? ' · YOUR TURN' : ''}`}</div>
-          <div style="font-weight:700;font-size:44px;line-height:1">${esc(p.full)}</div>
+          <div style="font-weight:700;font-size:${sz(44, 34)}px;line-height:1">${esc(p.full)}</div>
           ${p.adjust && !p.all_done ? adjustChip(p.adjust) : ''}
           <div style="margin-top:auto;display:flex;align-items:baseline;gap:14px">
-            <div class="disp" style="font-size:200px;letter-spacing:-0.02em;text-shadow:0 18px 40px rgba(0,0,0,0.45)">${p.next_weight ?? '—'}</div>
+            <div class="disp" style="font-size:${sz(200, 130)}px;letter-spacing:-0.02em;text-shadow:0 18px 40px rgba(0,0,0,0.45)">${p.next_weight ?? '—'}</div>
             <div class="cond gray" style="font-weight:800;font-size:40px">LB</div>
           </div>
           <div class="cond gray" style="font-size:24px;letter-spacing:0.08em">${p.all_done ? '' : p.next_pct != null && p.max ? `× ${p.next_reps} · ${Math.round(p.next_pct * 100)}% OF ${p.max}, ROUNDED` : p.next_pct != null ? 'NO MAX ON FILE: PICK YOUR WEIGHT' : p.next_weight ? `× ${p.next_reps ?? ''} · SAME AS YOUR LAST SET` : 'PICK YOUR WEIGHT ON THE NEXT SCREEN'}</div>
         </div>`
       : `<div style="position:relative;margin:auto 0;display:flex;flex-direction:column;gap:16px">
-          <div class="disp" style="font-size:110px;line-height:0.85">WHO'S<br>UP?</div>
-          <div style="font-weight:600;font-size:26px;line-height:1.3" class="gray">${S.crew.length ? 'Taking turns? Tap your name each time it\'s your set. Your spot is saved.' : 'Tap FIND MY NAME.'}</div>
+          <div class="disp" style="font-size:${sz(110, 76)}px;line-height:0.85">WHO'S<br>UP?</div>
+          <div style="font-weight:600;font-size:${sz(26, 21)}px;line-height:1.3" class="gray">${S.crew.length ? 'Taking turns? Tap your name each time it\'s your set. Your spot is saved.' : 'Tap FIND MY NAME.'}</div>
         </div>`}
     </section>
     ${S.crew.length ? `<div class="tiles">${tiles}</div>` : ''}
@@ -203,7 +208,7 @@ function logView() {
       <div class="label nowrap" style="margin-left:auto;font-size:22px;letter-spacing:0.1em">SET ${i + 1}${extra ? '' : ` OF ${total}`}</div>
     </div>
     ${s.adjust ? adjustChip(s.adjust, true) : ''}
-    <section class="card" style="flex-shrink:0;padding:26px 28px;display:flex;gap:20px">
+    <section class="card" style="flex-shrink:0;padding:${sz(26, 18)}px 28px;display:flex;gap:20px">
       <div class="sheen" aria-hidden="true"></div>
       <div style="position:relative;display:flex;flex-direction:column;gap:12px">
         <div class="label" style="font-size:22px;letter-spacing:0.14em">BEAT YOUR LAST</div>
@@ -213,7 +218,7 @@ function logView() {
         ${s.rank ? `<div class="pill chip-white" style="margin-top:6px;align-self:flex-start;height:52px;padding:0 22px 0 18px;gap:10px;font-family:var(--f-cond);font-weight:800;font-size:24px;letter-spacing:0.06em">
           <span class="disp" style="font-size:30px">#${s.rank}</span>ON THE BOARD TODAY</div>` : ''}
       </div>
-      <div class="disp" style="position:relative;margin-left:auto;align-self:flex-end;font-size:${p != null && Math.abs(p) >= 0.995 ? 110 : 150}px;letter-spacing:-0.02em;text-shadow:0 18px 40px rgba(0,0,0,0.45)">${p != null ? pct(p) : ''}</div>
+      <div class="disp" style="position:relative;margin-left:auto;align-self:flex-end;font-size:${p != null && Math.abs(p) >= 0.995 ? sz(110, 84) : sz(150, 104)}px;letter-spacing:-0.02em;text-shadow:0 18px 40px rgba(0,0,0,0.45)">${p != null ? pct(p) : ''}</div>
     </section>
     <section class="card" style="flex-grow:1;min-height:0;padding:20px;overflow-y:auto">
       <ol class="ladder" style="display:flex;flex-direction:column;gap:8px">${ladder.join('')}</ol>
@@ -254,10 +259,10 @@ function doneView() {
   return `<div class="screen-rack">
     ${header()}
     ${personLine(a)}
-    <section class="card" style="flex-shrink:0;padding:30px;display:flex;flex-direction:column;gap:16px">
+    <section class="card" style="flex-shrink:0;padding:${sz(30, 22)}px;display:flex;flex-direction:column;gap:${sz(16, 10)}px">
       <div class="sheen" aria-hidden="true"></div>
       <div class="label" style="position:relative;font-size:22px;letter-spacing:0.14em">${esc(s.lift.short.toUpperCase())} DONE</div>
-      <div class="disp" style="position:relative;font-size:120px;line-height:0.82">${p == null ? 'NICE<br>WORK' : p > 0 ? 'NICE<br>WORK' : 'GOOD<br>WORK'}</div>
+      <div class="disp" style="position:relative;font-size:${sz(120, 88)}px;line-height:0.82">${p == null ? 'NICE<br>WORK' : p > 0 ? 'NICE<br>WORK' : 'GOOD<br>WORK'}</div>
       <div style="position:relative;display:flex;align-items:center;gap:16px;margin-top:8px">
         ${s.rank ? `<div class="pill chip-white" style="height:56px;padding:0 22px 0 18px;gap:10px;font-family:var(--f-cond);font-weight:800;font-size:26px;letter-spacing:0.06em">
           <span class="disp" style="font-size:32px">#${s.rank}</span>BEAT YOUR LAST TODAY</div>`

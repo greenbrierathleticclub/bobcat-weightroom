@@ -1,1 +1,1 @@
-{ "name": "Bobcat Rack", "short_name": "Rack", "display": "fullscreen", "orientation": "portrait", "background_color": "#03170c", "theme_color": "#03170c", "start_url": "/rack/1", "icons": [{ "src": "/img/shield.svg", "sizes": "any", "type": "image/svg+xml" }] }
+{ "name": "Bobcat Rack", "short_name": "Rack", "display": "fullscreen", "orientation": "portrait", "background_color": "#03170c", "theme_color": "#03170c", "icons": [{ "src": "/img/rack-icon-180.png", "sizes": "180x180", "type": "image/png" }, { "src": "/img/shield.svg", "sizes": "any", "type": "image/svg+xml" }] }
